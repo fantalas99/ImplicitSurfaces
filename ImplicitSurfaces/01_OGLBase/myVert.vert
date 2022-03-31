@@ -4,11 +4,13 @@
 in vec3 vs_in_pos;
 in vec3 vs_in_norm;
 in vec2 vs_in_tex;
+in float vs_in_curv;
 
 // a pipeline-ban tovább adandó értékek
 out vec3 vs_out_pos;
 out vec3 vs_out_norm;
 out vec2 vs_out_tex;
+out float vs_out_curv;
 
 // shader külsõ paraméterei
 uniform mat4 MVP;
@@ -22,5 +24,6 @@ void main()
 	vs_out_pos = (world * vec4(vs_in_pos, 1)).xyz;
 	vs_out_norm = (worldIT * vec4(vs_in_norm, 0)).xyz;
 	vs_out_tex = vs_in_tex;
+	vs_out_curv = vs_in_curv;
 
 }

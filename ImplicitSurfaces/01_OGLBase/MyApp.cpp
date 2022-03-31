@@ -11,17 +11,18 @@
 #include <imgui/imgui.h>
 #include "includes/GLUtils.hpp"
 
-CMyApp::CMyApp(void)
+
+ImplicitSurfaceApp::ImplicitSurfaceApp(void)
 {
 	m_camera.SetView(glm::vec3(5, 5, 5), glm::vec3(0, 0, 0), glm::vec3(0, 1, 0));
 	m_mesh = nullptr;
 }
 
-CMyApp::~CMyApp(void)
+ImplicitSurfaceApp::~ImplicitSurfaceApp(void)
 {
 }
 
-void CMyApp::LoadMeshIntoBuffer(Geometry::TriMesh m)
+void ImplicitSurfaceApp::LoadMeshIntoBuffer(Geometry::TriMesh m)
 {
 
 	std::vector<Vertex>vertices;
@@ -32,22 +33,22 @@ void CMyApp::LoadMeshIntoBuffer(Geometry::TriMesh m)
 
 	using Triangle = std::array<size_t, 3>;
 
-	using open_mesh = OpenMesh::TriMesh_ArrayKernelT<MyTraits>;
+	//using open_mesh = OpenMesh::TriMesh_ArrayKernelT<MyTraits>;
 
-	open_mesh omesh;
+	//open_mesh omesh = open_mesh();
 
-	std::vector<open_mesh::VertexHandle> openmesh_vertices, openmesh_triangles;
+	//std::vector<open_mesh::VertexHandle> openmesh_vertices, openmesh_triangles;
 
 	for (int i = 0; i < m.points().size(); ++i) {
 
 		Geometry::Vector3D v = m.points()[i];
 
 		glm::vec3 n = AutoDiffNormal(v);
-
-		openmesh_vertices.push_back(omesh.add_vertex(MyTraits::Point(v[0], v[1], v[2])));
+		
+		//openmesh_vertices.push_back(omesh.add_vertex(MyTraits::Point(v[0], v[1], v[2])));
 
 		auto_normals.push_back(n);
-
+		auto_curvatures.push_back(AutoDiffCurvature(v));
 
 
 	}
@@ -58,30 +59,29 @@ void CMyApp::LoadMeshIntoBuffer(Geometry::TriMesh m)
 		indices.push_back(t[0]);
 		indices.push_back(t[1]);
 		indices.push_back(t[2]);
-		openmesh_triangles.push_back(openmesh_vertices[t[0]]);
-		openmesh_triangles.push_back(openmesh_vertices[t[1]]);
-		openmesh_triangles.push_back(openmesh_vertices[t[2]]);
-		omesh.add_face(openmesh_triangles);
+		//openmesh_triangles.push_back(openmesh_vertices[t[0]]);
+		//openmesh_triangles.push_back(openmesh_vertices[t[1]]);
+		//openmesh_triangles.push_back(openmesh_vertices[t[2]]);
+		//omesh.add_face(openmesh_triangles);
 
 	}
-	for (open_mesh::VertexHandle v : openmesh_vertices) {
+	/*for (open_mesh::VertexHandle v : openmesh_vertices) {
 
 		MyTraits::Normal est_n;
-		omesh.calc_vertex_normal_correct(v, est_n);
+		//omesh.calc_vertex_normal_correct(v, est_n);
 		estimated_normals.push_back(glm::vec3(est_n[0], est_n[1], est_n[2]));
 
-	}
+	}*/
 
 	for (int i = 0; i < m.points().size(); ++i) {
 	
 		Geometry::Vector3D v = m.points()[i];
 		glm::vec3 n = (UseAutoNormals ? auto_normals[i] : estimated_normals[i]);
-		vertices.push_back(Vertex{ glm::vec3(v[0],v[1],v[2]), n , glm::vec2()});
+		float curv = auto_curvatures[i];
+		vertices.push_back(Vertex{ glm::vec3(v[0],v[1],v[2]), n , glm::vec2(), curv});
 
 	
 	}
-
-	
 
 	m_CubeVertexBuffer.BufferData(vertices);
 
@@ -99,12 +99,14 @@ void CMyApp::LoadMeshIntoBuffer(Geometry::TriMesh m)
 								>, m_CubeVertexBuffer },
 			{ CreateAttribute<1, glm::vec3, (sizeof(glm::vec3)), sizeof(Vertex)>, m_CubeVertexBuffer },
 			{ CreateAttribute<2, glm::vec2, (2 * sizeof(glm::vec3)), sizeof(Vertex)>, m_CubeVertexBuffer },
+			{ CreateAttribute<3, float, (2 * sizeof(glm::vec3)) + sizeof(glm::vec2), sizeof(Vertex)>, m_CubeVertexBuffer },
+
 		},
 		m_CubeIndices
 	);
 }
 
-glm::vec3 CMyApp::AutoDiffNormal(Geometry::Vector3D v)
+glm::vec3 ImplicitSurfaceApp::AutoDiffNormal(Geometry::Vector3D v)
 {
 	using namespace autodiff;
 
@@ -125,7 +127,42 @@ glm::vec3 CMyApp::AutoDiffNormal(Geometry::Vector3D v)
 
 }
 
-void CMyApp::InitFunctions()
+float ImplicitSurfaceApp::AutoDiffCurvature(Geometry::Vector3D v)
+{
+
+	using namespace autodiff;
+	
+	dual2nd x = v[0];
+	dual2nd y = v[1];
+	dual2nd z = v[2];
+	dual2nd dx = derivative(Functions[0].func_dual_2nd, wrt(x), at(x, y, z));
+	dual2nd dy = derivative(Functions[0].func_dual_2nd, wrt(y), at(x, y, z));
+	dual2nd dz = derivative(Functions[0].func_dual_2nd, wrt(z), at(x, y, z));
+
+	glm::vec3 grad = glm::vec3(dx.val.val, dy.val.val, dz.val.val);
+	float grad_length = grad.length();
+
+	glm::mat3x3 hess;
+
+	hess[0][0] = derivative(Functions[0].func_dual_2nd, wrt(x, x), at(x, y, z));
+	hess[0][1] = derivative(Functions[0].func_dual_2nd, wrt(x, y), at(x, y, z));
+	hess[0][2] = derivative(Functions[0].func_dual_2nd, wrt(x, z), at(x, y, z));
+	hess[1][0] = derivative(Functions[0].func_dual_2nd, wrt(y, x), at(x, y, z));
+	hess[1][0] = derivative(Functions[0].func_dual_2nd, wrt(y, y), at(x, y, z));
+	hess[1][0] = derivative(Functions[0].func_dual_2nd, wrt(y, z), at(x, y, z));
+	hess[2][0] = derivative(Functions[0].func_dual_2nd, wrt(z, x), at(x, y, z));
+	hess[2][1] = derivative(Functions[0].func_dual_2nd, wrt(z, y), at(x, y, z));
+	hess[2][2] = derivative(Functions[0].func_dual_2nd, wrt(z, z), at(x, y, z));
+
+	float trace = hess[0][0] + hess[1][1] + hess[2][2];
+
+	glm::vec3 hess_x_grad =   hess * grad;
+	float gradt_x_hess_x_grad = dx.val.val * hess_x_grad[0] + dy.val.val * hess_x_grad[1] + dz.val.val * hess_x_grad[2];
+
+	return UseMeanCurvature ? (grad_length * grad_length * trace - gradt_x_hess_x_grad) / (grad_length * grad_length * grad_length * 2) : 1.f;
+}
+
+void ImplicitSurfaceApp::InitFunctions()
 {
 
 	//std::function<autodiff::dual(Geometry::Vector3D)> d = 
@@ -135,20 +172,26 @@ void CMyApp::InitFunctions()
 			[](Geometry::Vector3D p) {
 				double x, y, z;
 				x = p[0]; y = p[1]; z = p[2];
-				return  x * x + y * y + z * z - 1;
+				return  x * x + y * y + z - 1;
 
 			},
 			[](dual x, dual y, dual z) -> autodiff::dual {
 
 
-				return x * x + y * y + z * z - 1;
+				return x * x + y * y + z - 1;
+
+			},
+			[](dual2nd x, dual2nd y, dual2nd z) -> autodiff::dual2nd {
+
+
+				return x.val * x.val + y.val * y.val + z.val - 1;
 
 			}
 		));
 
 }
 
-void CMyApp::DebugNormals() {
+void ImplicitSurfaceApp::DebugNormals() {
 
 	for (int i = 0; i < mesh.points().size(); ++i) {
 	
@@ -161,12 +204,12 @@ void CMyApp::DebugNormals() {
 
 }
 
-void CMyApp::DebugEdges() {
+void ImplicitSurfaceApp::DebugEdges() {
 
 
 }
 
-void CMyApp::DrawLine(glm::vec3 p_1, glm::vec3 p_2, float w = 2) {
+void ImplicitSurfaceApp::DrawLine(glm::vec3 p_1, glm::vec3 p_2, float w = 2) {
 
 	//glLineWidth(w);
 	//glBegin(GL_LINES);
@@ -175,7 +218,7 @@ void CMyApp::DrawLine(glm::vec3 p_1, glm::vec3 p_2, float w = 2) {
 	//glEnd();
 }
 
-void CMyApp::DrawCoordinateSystem()
+void ImplicitSurfaceApp::DrawCoordinateSystem()
 {
 	// draw some lines
 	glColor3f(1.0, 0.0, 0.0); // red x
@@ -220,7 +263,7 @@ void CMyApp::DrawCoordinateSystem()
 	glEnd();
 }
 
-void CMyApp::InitShaders()
+void ImplicitSurfaceApp::InitShaders()
 {
 	// a shadereket tároló program létrehozása az OpenGL-hez hasonló módon:
 	m_program.AttachShaders({
@@ -233,6 +276,7 @@ void CMyApp::InitShaders()
 		{ 0, "vs_in_pos" },				// VAO 0-as csatorna menjen a vs_in_pos-ba
 		{ 1, "vs_in_norm" },			// VAO 1-es csatorna menjen a vs_in_norm-ba
 		{ 2, "vs_in_tex" },				// VAO 2-es csatorna menjen a vs_in_tex-be
+		{ 3, "vs_in_curv" },			// VAO 3-es csatorna menjen a vs_in_curv-be
 	});
 
 	m_program.LinkProgram();
@@ -249,7 +293,7 @@ void CMyApp::InitShaders()
 	);
 }
 
-bool CMyApp::Init()
+bool ImplicitSurfaceApp::Init()
 {
 	// törlési szín legyen kékes
 	glClearColor(0.125f, 0.25f, 0.5f, 1.0f);
@@ -284,11 +328,11 @@ bool CMyApp::Init()
 	return true;
 }
 
-void CMyApp::Clean()
+void ImplicitSurfaceApp::Clean()
 {
 }
 
-void CMyApp::Update()
+void ImplicitSurfaceApp::Update()
 {
 	static Uint32 last_time = SDL_GetTicks();
 	float delta_time = (SDL_GetTicks() - last_time) / 1000.0f;
@@ -298,7 +342,7 @@ void CMyApp::Update()
 	last_time = SDL_GetTicks();
 }
 
-void CMyApp::Render()
+void ImplicitSurfaceApp::Render()
 {
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
@@ -342,34 +386,34 @@ void CMyApp::Render()
 
 }
 
-void CMyApp::KeyboardDown(SDL_KeyboardEvent& key)
+void ImplicitSurfaceApp::KeyboardDown(SDL_KeyboardEvent& key)
 {
 	m_camera.KeyboardDown(key);
 }
 
-void CMyApp::KeyboardUp(SDL_KeyboardEvent& key)
+void ImplicitSurfaceApp::KeyboardUp(SDL_KeyboardEvent& key)
 {
 	m_camera.KeyboardUp(key);
 }
 
-void CMyApp::MouseMove(SDL_MouseMotionEvent& mouse)
+void ImplicitSurfaceApp::MouseMove(SDL_MouseMotionEvent& mouse)
 {
 	m_camera.MouseMove(mouse);
 }
 
-void CMyApp::MouseDown(SDL_MouseButtonEvent& mouse)
+void ImplicitSurfaceApp::MouseDown(SDL_MouseButtonEvent& mouse)
 {
 }
 
-void CMyApp::MouseUp(SDL_MouseButtonEvent& mouse)
+void ImplicitSurfaceApp::MouseUp(SDL_MouseButtonEvent& mouse)
 {
 }
 
-void CMyApp::MouseWheel(SDL_MouseWheelEvent& wheel)
+void ImplicitSurfaceApp::MouseWheel(SDL_MouseWheelEvent& wheel)
 {
 }
 
-void CMyApp::Resize(int _w, int _h)
+void ImplicitSurfaceApp::Resize(int _w, int _h)
 {
 	glViewport(0, 0, _w, _h );
 

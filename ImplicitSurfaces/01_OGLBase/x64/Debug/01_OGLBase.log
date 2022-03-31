@@ -1,22 +1,105 @@
 ﻿  MyApp.cpp
-C:\Users\valyis\Desktop\ImplicitSurfaces\01_OGLBase\MyApp.cpp(29,41): warning C4267: '=': conversion from 'size_t' to 'int', possible loss of data
-C:\Users\valyis\Desktop\ImplicitSurfaces\01_OGLBase\MyApp.cpp(58,25): warning C4267: 'argument': conversion from 'size_t' to '_Ty', possible loss of data
+C:\Users\valyis\Desktop\ImplicitSurfaces_GitHub\ImplicitSurfaces\01_OGLBase\MyApp.cpp(30,41): warning C4267: '=': conversion from 'size_t' to 'int', possible loss of data
+C:\Users\valyis\Desktop\ImplicitSurfaces_GitHub\ImplicitSurfaces\01_OGLBase\MyApp.cpp(59,25): warning C4267: 'argument': conversion from 'size_t' to '_Ty', possible loss of data
           with
           [
               _Ty=int
           ]
-C:\Users\valyis\Desktop\ImplicitSurfaces\01_OGLBase\MyApp.cpp(59,25): warning C4267: 'argument': conversion from 'size_t' to '_Ty', possible loss of data
+C:\Users\valyis\Desktop\ImplicitSurfaces_GitHub\ImplicitSurfaces\01_OGLBase\MyApp.cpp(60,25): warning C4267: 'argument': conversion from 'size_t' to '_Ty', possible loss of data
           with
           [
               _Ty=int
           ]
-C:\Users\valyis\Desktop\ImplicitSurfaces\01_OGLBase\MyApp.cpp(60,25): warning C4267: 'argument': conversion from 'size_t' to '_Ty', possible loss of data
+C:\Users\valyis\Desktop\ImplicitSurfaces_GitHub\ImplicitSurfaces\01_OGLBase\MyApp.cpp(61,25): warning C4267: 'argument': conversion from 'size_t' to '_Ty', possible loss of data
           with
           [
               _Ty=int
           ]
-  main.cpp
-C:\Program Files (x86)\Windows Kits\10\Include\10.0.19041.0\ucrt\corecrt_math_defines.h(28,1): warning C4005: 'M_PI': macro redefinition
-T:\OGLPack\include\SDL_stdinc.h(518): message : see previous definition of 'M_PI'
-  Generating Code...
-  01_OGLBase.vcxproj -> C:\Users\valyis\Desktop\ImplicitSurfaces\x64\Debug\01_OGLBase.exe
+C:\Users\valyis\Desktop\ImplicitSurfaces_GitHub\ImplicitSurfaces\01_OGLBase\MyApp.cpp(143,20): warning C4244: 'initializing': conversion from 'glm::tvec3<float,glm::packed_highp>::length_type' to 'float', possible loss of data
+C:\Users\valyis\Desktop\ImplicitSurfaces_GitHub\ImplicitSurfaces\01_OGLBase\MyApp.cpp(147,25): warning C4244: '=': conversion from 'G' to 'T', possible loss of data
+          with
+          [
+              G=double
+          ]
+          and
+          [
+              T=float
+          ]
+C:\Users\valyis\Desktop\ImplicitSurfaces_GitHub\ImplicitSurfaces\01_OGLBase\MyApp.cpp(148,25): warning C4244: '=': conversion from 'G' to 'T', possible loss of data
+          with
+          [
+              G=double
+          ]
+          and
+          [
+              T=float
+          ]
+C:\Users\valyis\Desktop\ImplicitSurfaces_GitHub\ImplicitSurfaces\01_OGLBase\MyApp.cpp(149,25): warning C4244: '=': conversion from 'G' to 'T', possible loss of data
+          with
+          [
+              G=double
+          ]
+          and
+          [
+              T=float
+          ]
+C:\Users\valyis\Desktop\ImplicitSurfaces_GitHub\ImplicitSurfaces\01_OGLBase\MyApp.cpp(150,25): warning C4244: '=': conversion from 'G' to 'T', possible loss of data
+          with
+          [
+              G=double
+          ]
+          and
+          [
+              T=float
+          ]
+C:\Users\valyis\Desktop\ImplicitSurfaces_GitHub\ImplicitSurfaces\01_OGLBase\MyApp.cpp(151,25): warning C4244: '=': conversion from 'G' to 'T', possible loss of data
+          with
+          [
+              G=double
+          ]
+          and
+          [
+              T=float
+          ]
+C:\Users\valyis\Desktop\ImplicitSurfaces_GitHub\ImplicitSurfaces\01_OGLBase\MyApp.cpp(152,25): warning C4244: '=': conversion from 'G' to 'T', possible loss of data
+          with
+          [
+              G=double
+          ]
+          and
+          [
+              T=float
+          ]
+C:\Users\valyis\Desktop\ImplicitSurfaces_GitHub\ImplicitSurfaces\01_OGLBase\MyApp.cpp(153,25): warning C4244: '=': conversion from 'G' to 'T', possible loss of data
+          with
+          [
+              G=double
+          ]
+          and
+          [
+              T=float
+          ]
+C:\Users\valyis\Desktop\ImplicitSurfaces_GitHub\ImplicitSurfaces\01_OGLBase\MyApp.cpp(154,25): warning C4244: '=': conversion from 'G' to 'T', possible loss of data
+          with
+          [
+              G=double
+          ]
+          and
+          [
+              T=float
+          ]
+C:\Users\valyis\Desktop\ImplicitSurfaces_GitHub\ImplicitSurfaces\01_OGLBase\MyApp.cpp(155,25): warning C4244: '=': conversion from 'G' to 'T', possible loss of data
+          with
+          [
+              G=double
+          ]
+          and
+          [
+              T=float
+          ]
+C:\Users\valyis\Desktop\ImplicitSurfaces_GitHub\ImplicitSurfaces\01_OGLBase\MyApp.cpp(160,28): warning C4244: 'initializing': conversion from 'T' to 'float', possible loss of data
+          with
+          [
+              T=double
+          ]
+  01_OGLBase.vcxproj -> C:\Users\valyis\Desktop\ImplicitSurfaces_GitHub\ImplicitSurfaces\x64\Debug\01_OGLBase.exe

@@ -145,7 +145,7 @@ int main( int argc, char* args[] )
 		SDL_Event ev;
 
 		// alkalmazas példánya
-		CMyApp app;
+		ImplicitSurfaceApp app;
 		if (!app.Init())
 		{
 			SDL_GL_DeleteContext(context);

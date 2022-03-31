@@ -33,11 +33,11 @@
 
 class Function_T;
 
-class CMyApp
+class ImplicitSurfaceApp
 {
 public:
-	CMyApp();
-	~CMyApp();
+	ImplicitSurfaceApp();
+	~ImplicitSurfaceApp();
 
 	bool Init();
 	void Clean();
@@ -72,12 +72,15 @@ protected:
 	Geometry::TriMesh mesh;
 	std::vector<glm::vec3> auto_normals;
 	std::vector<glm::vec3> estimated_normals;
+	std::vector<float> auto_curvatures;
+	std::vector<float> estimated_curvatures;
 
 	struct Vertex
 	{
 		glm::vec3 p;
 		glm::vec3 n;
 		glm::vec2 t;
+		float c;
 	};
 
 	std::unique_ptr<Mesh> m_mesh;
@@ -85,6 +88,7 @@ protected:
 	std::vector<Function_T> Functions;
 
 	glm::vec3 AutoDiffNormal(Geometry::Vector3D v);
+	float AutoDiffCurvature(Geometry::Vector3D v);
 
 	void InitFunctions();
 	void DrawCoordinateSystem();
@@ -95,7 +99,8 @@ protected:
 	void DebugEdges();
 
 	bool ImGUIDebugNormals = false;
-	bool UseAutoNormals = false;
+	bool UseAutoNormals = true;
+	bool UseMeanCurvature = true;
 
 	struct MyTraits : public OpenMesh::DefaultTraits {
 		using Point = OpenMesh::Vec3d; // the default would be Vec3f
@@ -104,8 +109,6 @@ protected:
 		  double mean;              // approximated mean curvature
 		};
 	};
-
-	//typedef OpenMesh::TriMesh_ArrayKernelT<MyTraits> open_mesh;
 
 };
 

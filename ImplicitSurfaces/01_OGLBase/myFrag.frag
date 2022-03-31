@@ -4,6 +4,7 @@
 in vec3 vs_out_pos;
 in vec3 vs_out_norm;
 in vec2 vs_out_tex;
+in float vs_out_curv;
 
 out vec4 fs_out_col;
 
@@ -58,5 +59,6 @@ void main()
 	vec3 specular = specularStrength * spec * lightColor; 
 	vec3 specular_point = specularStrength * spec_point * point_light_color * 0;
 
-	fs_out_col = vec4(ambient + diffuse + diffuse_point + specular + specular_point, 1) * texture(texImage, vs_out_tex);
+	fs_out_col = vec4(vs_out_curv, vs_out_curv, vs_out_curv, 1);
+	//vec4(ambient + diffuse + diffuse_point + specular + specular_point, 1) * texture(texImage, vs_out_tex);
 }
