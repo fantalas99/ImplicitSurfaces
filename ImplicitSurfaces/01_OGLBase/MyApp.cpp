@@ -22,10 +22,13 @@ ImplicitSurfaceApp::~ImplicitSurfaceApp(void)
 {
 }
 
-void ImplicitSurfaceApp::LoadMeshIntoBuffer(Geometry::TriMesh m)
+void ImplicitSurfaceApp::LoadMeshIntoBuffer(Geometry::TriMesh m) 
 {
 
 	std::vector<Vertex>vertices;
+
+	auto_normals.clear();
+	auto_curvatures.clear();
 
 	TriangeCount = m.triangles().size() * 3;
 
@@ -73,21 +76,50 @@ void ImplicitSurfaceApp::LoadMeshIntoBuffer(Geometry::TriMesh m)
 
 	}*/
 
+	float max_curv = -100000;
+	float min_curv = 100000;
+
+	for (float f : auto_curvatures) {
+
+		if (f > max_curv) {
+
+			max_curv = f;
+
+		}
+		if (f < min_curv) {
+		
+			min_curv = f;
+
+		}
+
+	}
+
 	for (int i = 0; i < m.points().size(); ++i) {
 	
 		Geometry::Vector3D v = m.points()[i];
 		glm::vec3 n = (UseAutoNormals ? auto_normals[i] : estimated_normals[i]);
-		float curv = auto_curvatures[i];
-		vertices.push_back(Vertex{ glm::vec3(v[0],v[1],v[2]), n , glm::vec2(), curv});
+		float curv = UseAutoCurvature ? auto_curvatures[i] : 1.0;
+		float curv_norm = 0;
+		if (curv >= 0) {
+		
+			curv_norm = 0.5 + (curv / (max_curv * 2));
 
-	
+		}
+		else {
+
+			curv_norm = 0.5 - (curv / (min_curv * 2));
+
+		}
+		
+		vertices.push_back(Vertex{ glm::vec3(v[0],v[1],v[2]), n , glm::vec2(), curv_norm});
+
 	}
-
+	m_CubeVertexBuffer.Clean();
 	m_CubeVertexBuffer.BufferData(vertices);
 
 	// és a primitíveket alkotó csúcspontok indexei (az előző tömbökből) - triangle list-el való kirajzolásra felkészülve
+	m_CubeIndices.Clean();
 	m_CubeIndices.BufferData(indices);
-
 	// geometria VAO-ban való regisztrálása
 	m_CubeVao.Init(
 		{
@@ -135,31 +167,61 @@ float ImplicitSurfaceApp::AutoDiffCurvature(Geometry::Vector3D v)
 	dual2nd x = v[0];
 	dual2nd y = v[1];
 	dual2nd z = v[2];
-	dual2nd dx = derivative(Functions[0].func_dual_2nd, wrt(x), at(x, y, z));
-	dual2nd dy = derivative(Functions[0].func_dual_2nd, wrt(y), at(x, y, z));
-	dual2nd dz = derivative(Functions[0].func_dual_2nd, wrt(z), at(x, y, z));
+	double dx = derivative(Functions[0].func_dual_2nd, wrt(x), at(x, y, z));
+	double dy = derivative(Functions[0].func_dual_2nd, wrt(y), at(x, y, z));
+	double dz = derivative(Functions[0].func_dual_2nd, wrt(z), at(x, y, z));
 
-	glm::vec3 grad = glm::vec3(dx.val.val, dy.val.val, dz.val.val);
-	float grad_length = grad.length();
+	glm::vec3 grad = glm::vec3(dx, dy, dz);
+	float grad_length = glm::length(grad);
 
 	glm::mat3x3 hess;
 
-	hess[0][0] = derivative(Functions[0].func_dual_2nd, wrt(x, x), at(x, y, z));
-	hess[0][1] = derivative(Functions[0].func_dual_2nd, wrt(x, y), at(x, y, z));
-	hess[0][2] = derivative(Functions[0].func_dual_2nd, wrt(x, z), at(x, y, z));
-	hess[1][0] = derivative(Functions[0].func_dual_2nd, wrt(y, x), at(x, y, z));
-	hess[1][0] = derivative(Functions[0].func_dual_2nd, wrt(y, y), at(x, y, z));
-	hess[1][0] = derivative(Functions[0].func_dual_2nd, wrt(y, z), at(x, y, z));
-	hess[2][0] = derivative(Functions[0].func_dual_2nd, wrt(z, x), at(x, y, z));
-	hess[2][1] = derivative(Functions[0].func_dual_2nd, wrt(z, y), at(x, y, z));
-	hess[2][2] = derivative(Functions[0].func_dual_2nd, wrt(z, z), at(x, y, z));
+	hess[0][0] = derivative<2>(Functions[0].func_dual_2nd, wrt(x, x), at(x, y, z));
+	hess[0][1] = derivative<2>(Functions[0].func_dual_2nd, wrt(x, y), at(x, y, z));
+	hess[0][2] = derivative<2>(Functions[0].func_dual_2nd, wrt(x, z), at(x, y, z));
+	hess[1][0] = derivative<2>(Functions[0].func_dual_2nd, wrt(y, x), at(x, y, z));
+	hess[1][1] = derivative<2>(Functions[0].func_dual_2nd, wrt(y, y), at(x, y, z));
+	hess[1][2] = derivative<2>(Functions[0].func_dual_2nd, wrt(y, z), at(x, y, z));
+	hess[2][0] = derivative<2>(Functions[0].func_dual_2nd, wrt(z, x), at(x, y, z));
+	hess[2][1] = derivative<2>(Functions[0].func_dual_2nd, wrt(z, y), at(x, y, z));
+	hess[2][2] = derivative<2>(Functions[0].func_dual_2nd, wrt(z, z), at(x, y, z));
 
-	float trace = hess[0][0] + hess[1][1] + hess[2][2];
+	if (UseMeanCurvature) {
 
-	glm::vec3 hess_x_grad =   hess * grad;
-	float gradt_x_hess_x_grad = dx.val.val * hess_x_grad[0] + dy.val.val * hess_x_grad[1] + dz.val.val * hess_x_grad[2];
+	
+		float trace = hess[0][0] + hess[1][1] + hess[2][2];
 
-	return UseMeanCurvature ? (grad_length * grad_length * trace - gradt_x_hess_x_grad) / (grad_length * grad_length * grad_length * 2) : 1.f;
+		glm::vec3 hess_x_grad = hess * grad;
+		float gradt_x_hess_x_grad = dx * hess_x_grad[0] + dy * hess_x_grad[1] + dz * hess_x_grad[2];
+
+		return (grad_length * grad_length * trace - gradt_x_hess_x_grad) / (grad_length * grad_length * grad_length * 2);
+
+	}
+	else {
+	
+	
+		glm::mat3x3 adj;
+
+		adj[0][0] = Det_2x2(hess[1][1],hess[1][2],hess[2][1],hess[2][2]);
+		adj[0][1] = -1 * Det_2x2(hess[0][1], hess[0][2], hess[2][1], hess[2][2]);
+		adj[0][2] = Det_2x2(hess[0][1], hess[0][2], hess[1][1], hess[1][2]);
+		adj[1][0] = -1 * Det_2x2(hess[1][0], hess[1][2], hess[2][0], hess[2][2]);
+		adj[1][1] = Det_2x2(hess[0][0], hess[0][2], hess[2][0], hess[2][2]);
+		adj[1][2] = -1 * Det_2x2(hess[0][0], hess[0][2], hess[1][0], hess[1][2]);
+		adj[2][0] = Det_2x2(hess[1][0], hess[1][1], hess[2][0], hess[2][1]);
+		adj[2][1] = -1 * Det_2x2(hess[0][0], hess[0][1], hess[2][0], hess[2][1]);
+		adj[2][2] = Det_2x2(hess[0][0], hess[0][1], hess[1][0], hess[1][1]);
+
+		glm::vec3 adj_x_grad = adj * grad;
+		float gradt_x_adj_x_grad = dx * adj_x_grad[0] + dy * adj_x_grad[1] + dz * adj_x_grad[2];
+
+		return (gradt_x_adj_x_grad) / (pow(grad_length, 4));
+	}
+}
+
+double ImplicitSurfaceApp::Det_2x2(double a1, double a2, double b1, double b2)
+{
+	return a1* b2 - a2 * b1;
 }
 
 void ImplicitSurfaceApp::InitFunctions()
@@ -177,35 +239,92 @@ void ImplicitSurfaceApp::InitFunctions()
 			},
 			[](dual x, dual y, dual z) -> autodiff::dual {
 
-
+				
 				return x * x + y * y + z - 1;
 
 			},
 			[](dual2nd x, dual2nd y, dual2nd z) -> autodiff::dual2nd {
 
 
-				return x.val * x.val + y.val * y.val + z.val - 1;
+				return x * x + y * y + z - 1;
 
 			}
 		));
 
+	Functions.push_back(
+		Function_T(
+			[](Geometry::Vector3D p) {
+		double x, y, z;
+		x = p[0]; y = p[1]; z = p[2];
+		return 12.5990051961515 * pow(x, 2) * pow(y, 2) * pow(z, 2) + 10.0000000000000 * pow(x, 2) * pow(y, 2) + 2.34314575050762 * pow(x, 2) * pow(z, 2) + 10.0000000000000 * pow(y, 2) * pow(z, 2) + (x - 0.500000000000000) * pow(x, 2) + (2 * y - 0.400000000000000) * pow(y, 2) + (z - 0.500000000000000) * pow(z, 2);
+
+	},
+		[](dual x, dual y, dual z) -> autodiff::dual {
+
+
+		return 12.5990051961515 * pow(x, 2) * pow(y, 2) * pow(z, 2) + 10.0000000000000 * pow(x, 2) * pow(y, 2) + 2.34314575050762 * pow(x, 2) * pow(z, 2) + 10.0000000000000 * pow(y, 2) * pow(z, 2) + (x - 0.500000000000000) * pow(x, 2) + (2 * y - 0.400000000000000) * pow(y, 2) + (z - 0.500000000000000) * pow(z, 2);
+
+	},
+		[](dual2nd x, dual2nd y, dual2nd z) -> autodiff::dual2nd {
+
+
+		return 12.5990051961515 * pow(x, 2) * pow(y, 2) * pow(z, 2) + 10.0000000000000 * pow(x, 2) * pow(y, 2) + 2.34314575050762 * pow(x, 2) * pow(z, 2) + 10.0000000000000 * pow(y, 2) * pow(z, 2) + (x - 0.500000000000000) * pow(x, 2) + (2 * y - 0.400000000000000) * pow(y, 2) + (z - 0.500000000000000) * pow(z, 2);
+
+	}
+	));
+
 }
 
 void ImplicitSurfaceApp::DebugNormals() {
+	
+	glBegin(GL_LINES);
 
 	for (int i = 0; i < mesh.points().size(); ++i) {
 	
 		Geometry::Vector3D vec = mesh.points()[i];
-		Vertex vertex;
-		vertex.p = glm::vec3(vec[0], vec[1], vec[2]);
-		DrawLine(vertex.p, vertex.p + 0.1f * auto_normals[i], 5);
-	
+		
+		glm::vec3 v(vec[0], vec[1], vec[2]);
+		glm::vec3 v_n = v + (auto_normals[i] * 0.1f);
+		glVertex3f(v[0], v[1], v[2]);
+		glVertex3f(v_n[0], v_n[1], v_n[2]);
+
 	}
+
+	glEnd();
 
 }
 
 void ImplicitSurfaceApp::DebugEdges() {
 
+	glBegin(GL_LINES);
+
+	for (const Geometry::TriMesh::Triangle & t : mesh.triangles()) {
+	
+		Geometry::Vector3D v_1 = mesh.points()[t[0]];
+		Geometry::Vector3D v_2 = mesh.points()[t[1]];
+		Geometry::Vector3D v_3 = mesh.points()[t[2]];
+
+		glVertex3f(v_1[0], v_1[1], v_1[2]);
+		glVertex3f(v_2[0], v_2[1], v_2[2]);
+
+		glVertex3f(v_2[0], v_2[1], v_2[2]);
+		glVertex3f(v_3[0], v_3[1], v_3[2]);
+
+		glVertex3f(v_3[0], v_3[1], v_3[2]);
+		glVertex3f(v_1[0], v_1[1], v_1[2]);
+	}
+
+	glEnd();
+}
+
+void ImplicitSurfaceApp::GenerateMesh(int function_index)
+{
+
+	std::array<Geometry::Vector3D, 2> boundingBox = { Geometry::Vector3D(-5,-5,-5), Geometry::Vector3D(5,5,5) };
+
+	mesh = IMC::marching_cubes(Functions[function_index].func, 0, boundingBox, { 100, 100, 100 }, true);
+
+	LoadMeshIntoBuffer(mesh);
 
 }
 
@@ -314,16 +433,7 @@ bool ImplicitSurfaceApp::Init()
 	
 	m_camera.SetProj(glm::radians(60.0f), 640.0f / 480.0f, 0.01f, 1000.0f);
 
-	std::function<double(Geometry::Vector3D)> sphere_surface = [](Geometry::Vector3D p) {return sin(p[0] * p[2]) - p[1]; };
-
-	//auto bounding box calculation
-	std::array<Geometry::Vector3D, 2> boundingBox = { Geometry::Vector3D(-5,-5,-5), Geometry::Vector3D(5,5,5) };
-
-	mesh = IMC::marching_cubes(Functions[0].func , 0, boundingBox, { 100, 100, 100 }, true);
-
-	LoadMeshIntoBuffer(mesh);
-
-	
+	GenerateMesh(0);
 
 	return true;
 }
@@ -349,17 +459,16 @@ void ImplicitSurfaceApp::Render()
 	glm::mat4 viewProj = m_camera.GetViewProj();
 	glm::mat4 MeshWorld = glm::mat4(1.0f);
 
-	//DrawCoordinateSystem();
-
 	m_program.Use();
 	m_program.SetTexture("texImage", 0, m_Texture_Red);
 	m_program.SetUniform("MVP", viewProj * MeshWorld);
 	m_program.SetUniform("world", MeshWorld);
+	m_program.SetUniform("showCurv", VisualizeCurvature ? 1 : 0);
 	m_program.SetUniform("worldIT", glm::inverse(glm::transpose(MeshWorld)));
 	m_program.SetUniform("viewPos", m_camera.GetEye());
-	//m_mesh->draw();
 
 	m_CubeVao.Bind();
+
 	glm::mat4 cubeWorld;
 
 	
@@ -369,21 +478,35 @@ void ImplicitSurfaceApp::Render()
 		glDrawElements(GL_TRIANGLES, TriangeCount * 3, GL_UNSIGNED_INT, nullptr);
 	}
 
-	if (ImGUIDebugNormals) {
+	//m_program.Unuse();
 
-		glLineWidth(5);
-		glBegin(GL_LINES);
+	if (ImguiDebugNormals) {
+
 		DebugNormals();
-		glEnd();
+		
+	}
+	if (ImguiDebugEdges) {
+
+		DebugEdges();
 
 	}
 
-	m_program.Unuse();
-
-
 	ImGui::ShowTestWindow();
-	ImGui::Checkbox("Show Normals",&ImGUIDebugNormals);
+	ImGui::Checkbox("Debug Normals",&ImguiDebugNormals);
+	ImGui::Checkbox("Debug Edges", &ImguiDebugEdges);
+	ImGui::Checkbox("Visualize Curvature", &VisualizeCurvature);
+	if (ImGui::Checkbox("Use Mean Curvature", &UseMeanCurvature)) {
+	
+		LoadMeshIntoBuffer(mesh);
+	
+	}
+	if (ImGui::ListBox("Surfaces", &ActiveFunctionIndex, FunctionNames)) {
 
+		std::cout << ActiveFunctionIndex << std::endl;
+		GenerateMesh(ActiveFunctionIndex);
+	
+	}
+	
 }
 
 void ImplicitSurfaceApp::KeyboardDown(SDL_KeyboardEvent& key)

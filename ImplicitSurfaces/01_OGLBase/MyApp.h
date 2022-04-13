@@ -5,7 +5,7 @@
 
 // OpenMesh
 //#include <OpenMesh/Core/Mesh/Traits.hh>
-#include <OpenMesh/Core/Mesh/TriMesh_ArrayKernelT.hh>
+//#include <OpenMesh/Core/Mesh/TriMesh_ArrayKernelT.hh>
 //#include <OpenMesh/Core/Mesh/Handles.hh>
 
 // C++ includes
@@ -62,6 +62,10 @@ protected:
 	IndexBuffer			m_CubeIndices;		// index buffer
 	ArrayBuffer			m_CubeVertexBuffer;	// VBO
 
+	//VertexArrayObject		m_DebugVao;			// VAO
+	//IndexBuffer			m_DebugIndices;		// index buffer
+	//ArrayBuffer			m_DebugVertexBuffer;// VBO
+
 	gCamera				m_camera;
 
 	Texture2D			m_Texture_Red;
@@ -90,6 +94,8 @@ protected:
 	glm::vec3 AutoDiffNormal(Geometry::Vector3D v);
 	float AutoDiffCurvature(Geometry::Vector3D v);
 
+	double Det_2x2(double a1, double a2, double b1, double b2);
+
 	void InitFunctions();
 	void DrawCoordinateSystem();
 	void InitShaders();
@@ -97,18 +103,25 @@ protected:
 	void DrawLine(glm::vec3 p_1, glm::vec3 p_2, float w);
 	void DebugNormals();
 	void DebugEdges();
+	void GenerateMesh(int function_index);
 
-	bool ImGUIDebugNormals = false;
+	bool ImguiDebugEdges = false;
+	bool ImguiDebugNormals = false;
+	bool VisualizeCurvature = true;
 	bool UseAutoNormals = true;
+	bool UseAutoCurvature = true;
 	bool UseMeanCurvature = true;
+	int ActiveFunctionIndex = 0;
+	int DebugVertexCount = 0;
+	std::vector<std::string> FunctionNames = {"Parabol","two"};
 
-	struct MyTraits : public OpenMesh::DefaultTraits {
+	/*struct MyTraits : public OpenMesh::DefaultTraits {
 		using Point = OpenMesh::Vec3d; // the default would be Vec3f
 		using Normal = OpenMesh::Vec3d;
 		VertexTraits{
 		  double mean;              // approximated mean curvature
 		};
-	};
+	};*/
 
 };
 

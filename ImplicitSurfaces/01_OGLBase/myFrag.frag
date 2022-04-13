@@ -16,10 +16,10 @@ uniform vec3 La = vec3(0.1,0.1,0.1);
 uniform vec3 Ld = vec3(0.3,0.3,0.3);
 
 uniform sampler2D texImage;
-
 uniform vec3 viewPos;
+uniform int showCurv;
 
-uniform vec3 point_light_location = vec3(0,2,0);
+uniform vec3 point_light_location = vec3(0,2,1);
 uniform vec3 point_light_color = vec3(0.4,0.4,0.4);
 
 
@@ -58,7 +58,34 @@ void main()
 
 	vec3 specular = specularStrength * spec * lightColor; 
 	vec3 specular_point = specularStrength * spec_point * point_light_color * 0;
+	
 
-	fs_out_col = vec4(vs_out_curv, vs_out_curv, vs_out_curv, 1);
-	//vec4(ambient + diffuse + diffuse_point + specular + specular_point, 1) * texture(texImage, vs_out_tex);
+	if(showCurv == 1){
+	
+		float c = vs_out_curv;
+		float a = (1 - c) / 0.25;
+		float x = floor(a);
+		float y = floor(255 * (a - x));
+
+		float r = 0;
+		float g = 0;
+		float b = 0;
+
+		if(x == 0){r = 255; g = y; b = 0;}
+		if(x == 1){r = 255-y; g = 255; b = 0;}
+		if(x == 2){r = 0; g = 255; b = y;}
+		if(x == 3){r = 0; g = 255-y; b = 255;}
+		if(x == 4){r = 0; g = 0; b = 255;}
+
+		fs_out_col = vec4(r / 255, g / 255, b / 255, 1);
+		
+	}
+	else {
+
+		fs_out_col = vec4(ambient + diffuse + diffuse_point + specular + specular_point, 1) * texture(texImage, vs_out_tex);
+
+	}
+
+
+
 }
