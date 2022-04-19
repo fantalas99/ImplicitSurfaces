@@ -4,9 +4,15 @@
 #include "Dependencies/implicit_marching_cubes-master/mc.h"
 
 // OpenMesh
-//#include <OpenMesh/Core/Mesh/Traits.hh>
-//#include <OpenMesh/Core/Mesh/TriMesh_ArrayKernelT.hh>
-//#include <OpenMesh/Core/Mesh/Handles.hh>
+#include <OpenMesh/Core/Mesh/Traits.hh>
+#include <OpenMesh/Core/Mesh/DefaultTriMesh.hh>
+#include <OpenMesh/Core/Mesh/TriMeshT.hh>
+#include <OpenMesh/Core/Mesh/TriMesh_ArrayKernelT.hh>
+#include <OpenMesh/Core/Mesh/Handles.hh>
+
+#include "Dependencies/TriMesh/trimesh.h"
+
+
 
 // C++ includes
 #include <memory>
@@ -89,10 +95,15 @@ protected:
 
 	std::unique_ptr<Mesh> m_mesh;
 
+	trimesh::trimesh_t tmesh;
+
 	std::vector<Function_T> Functions;
 
 	glm::vec3 AutoDiffNormal(Geometry::Vector3D v);
 	float AutoDiffCurvature(Geometry::Vector3D v);
+
+	glm::vec3 EstimateNormal(int vertex_index);
+	float EstimateCurvature(int vertex_index);
 
 	double Det_2x2(double a1, double a2, double b1, double b2);
 
@@ -105,6 +116,7 @@ protected:
 	void DebugEdges();
 	void GenerateMesh(int function_index);
 
+	bool UseNormalScale = true;
 	bool ImguiDebugEdges = false;
 	bool ImguiDebugNormals = false;
 	bool VisualizeCurvature = true;
@@ -113,15 +125,15 @@ protected:
 	bool UseMeanCurvature = true;
 	int ActiveFunctionIndex = 0;
 	int DebugVertexCount = 0;
-	std::vector<std::string> FunctionNames = {"Parabol","two"};
+	std::vector<std::string> FunctionNames = {"Surface One","Surface Two", "Surface Three"};
 
-	/*struct MyTraits : public OpenMesh::DefaultTraits {
+	struct MyTraits : public OpenMesh::DefaultTraits {
 		using Point = OpenMesh::Vec3d; // the default would be Vec3f
 		using Normal = OpenMesh::Vec3d;
 		VertexTraits{
 		  double mean;              // approximated mean curvature
 		};
-	};*/
+	};
 
 };
 

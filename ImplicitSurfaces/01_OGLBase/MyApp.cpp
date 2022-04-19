@@ -4,6 +4,7 @@
 #include <vector>
 #include <autodiff/forward/dual.hpp>
 #include "Function.h"
+#include "Dependencies/TriMesh/trimesh.cpp"
 
 #include <array>
 #include <list>
@@ -25,7 +26,7 @@ ImplicitSurfaceApp::~ImplicitSurfaceApp(void)
 void ImplicitSurfaceApp::LoadMeshIntoBuffer(Geometry::TriMesh m) 
 {
 
-	std::vector<Vertex>vertices;
+	std::vector<Vertex> vertices;
 
 	auto_normals.clear();
 	auto_curvatures.clear();
@@ -36,45 +37,40 @@ void ImplicitSurfaceApp::LoadMeshIntoBuffer(Geometry::TriMesh m)
 
 	using Triangle = std::array<size_t, 3>;
 
-	//using open_mesh = OpenMesh::TriMesh_ArrayKernelT<MyTraits>;
-
-	//open_mesh omesh = open_mesh();
-
-	//std::vector<open_mesh::VertexHandle> openmesh_vertices, openmesh_triangles;
-
-	for (int i = 0; i < m.points().size(); ++i) {
-
-		Geometry::Vector3D v = m.points()[i];
-
-		glm::vec3 n = AutoDiffNormal(v);
-		
-		//openmesh_vertices.push_back(omesh.add_vertex(MyTraits::Point(v[0], v[1], v[2])));
-
-		auto_normals.push_back(n);
-		auto_curvatures.push_back(AutoDiffCurvature(v));
-
-
-	}
-
+	int tricount = m.triangles().size();
+	std::vector<trimesh::triangle_t> tris;
+	std::vector<trimesh::edge_t> edges;
 
 	for (Triangle t : m.triangles())
 	{
 		indices.push_back(t[0]);
 		indices.push_back(t[1]);
 		indices.push_back(t[2]);
-		//openmesh_triangles.push_back(openmesh_vertices[t[0]]);
-		//openmesh_triangles.push_back(openmesh_vertices[t[1]]);
-		//openmesh_triangles.push_back(openmesh_vertices[t[2]]);
-		//omesh.add_face(openmesh_triangles);
+		trimesh::triangle_t tri;
+		tri.v[0] = t[0];
+		tri.v[1] = t[1];
+		tri.v[2] = t[2];
+		tris.push_back(tri);
+	
+	}
+
+	trimesh::unordered_edges_from_triangles(tricount, &tris[0], edges);
+
+	tmesh.build(m.points().size(), tricount, &tris[0], edges.size(), &edges[0]);
+
+	for (int i = 0; i < m.points().size(); ++i) {
+
+		Geometry::Vector3D v = m.points()[i];
+
+		glm::vec3 n = AutoDiffNormal(v);
+
+		auto_normals.push_back(n);
+		estimated_normals.push_back(EstimateNormal(i));
+		auto_curvatures.push_back(AutoDiffCurvature(v));
+		estimated_curvatures.push_back(EstimateCurvature(i));
 
 	}
-	/*for (open_mesh::VertexHandle v : openmesh_vertices) {
 
-		MyTraits::Normal est_n;
-		//omesh.calc_vertex_normal_correct(v, est_n);
-		estimated_normals.push_back(glm::vec3(est_n[0], est_n[1], est_n[2]));
-
-	}*/
 
 	float max_curv = -100000;
 	float min_curv = 100000;
@@ -98,8 +94,15 @@ void ImplicitSurfaceApp::LoadMeshIntoBuffer(Geometry::TriMesh m)
 	
 		Geometry::Vector3D v = m.points()[i];
 		glm::vec3 n = (UseAutoNormals ? auto_normals[i] : estimated_normals[i]);
-		float curv = UseAutoCurvature ? auto_curvatures[i] : 1.0;
+		float curv = UseAutoCurvature ? auto_curvatures[i] : estimated_curvatures[i];
 		float curv_norm = 0;
+		if (UseNormalScale) {
+
+			max_curv = 1;
+			min_curv = -1;
+			if (curv > 1) { curv = 1; }
+			if (curv < -1) { curv = -1; }
+		}
 		if (curv >= 0) {
 		
 			curv_norm = 0.5 + (curv / (max_curv * 2));
@@ -110,17 +113,17 @@ void ImplicitSurfaceApp::LoadMeshIntoBuffer(Geometry::TriMesh m)
 			curv_norm = 0.5 - (curv / (min_curv * 2));
 
 		}
-		
+
 		vertices.push_back(Vertex{ glm::vec3(v[0],v[1],v[2]), n , glm::vec2(), curv_norm});
 
 	}
+
 	m_CubeVertexBuffer.Clean();
 	m_CubeVertexBuffer.BufferData(vertices);
 
-	// és a primitíveket alkotó csúcspontok indexei (az előző tömbökből) - triangle list-el való kirajzolásra felkészülve
 	m_CubeIndices.Clean();
 	m_CubeIndices.BufferData(indices);
-	// geometria VAO-ban való regisztrálása
+
 	m_CubeVao.Init(
 		{
 			// 0-ás attribútum "lényegében" glm::vec3-ak sorozata és az adatok az m_CubeVertexBuffer GPU pufferben vannak
@@ -138,8 +141,8 @@ void ImplicitSurfaceApp::LoadMeshIntoBuffer(Geometry::TriMesh m)
 	);
 }
 
-glm::vec3 ImplicitSurfaceApp::AutoDiffNormal(Geometry::Vector3D v)
-{
+glm::vec3 ImplicitSurfaceApp::AutoDiffNormal(Geometry::Vector3D v) {
+
 	using namespace autodiff;
 
 	dual x = v[0];
@@ -149,8 +152,6 @@ glm::vec3 ImplicitSurfaceApp::AutoDiffNormal(Geometry::Vector3D v)
 	double dx = derivative(Functions[0].func_dual, wrt(x), at(x, y, z));
 	double dy = derivative(Functions[0].func_dual, wrt(y), at(x, y, z));
 	double dz = derivative(Functions[0].func_dual, wrt(z), at(x, y, z));
-
-	//std::cout << dx << " | " << dy << " | " << dz << std::endl;
 
 	glm::vec3 normal(dx, dy, dz);
 	normal = glm::normalize(normal);
@@ -167,24 +168,24 @@ float ImplicitSurfaceApp::AutoDiffCurvature(Geometry::Vector3D v)
 	dual2nd x = v[0];
 	dual2nd y = v[1];
 	dual2nd z = v[2];
-	double dx = derivative(Functions[0].func_dual_2nd, wrt(x), at(x, y, z));
-	double dy = derivative(Functions[0].func_dual_2nd, wrt(y), at(x, y, z));
-	double dz = derivative(Functions[0].func_dual_2nd, wrt(z), at(x, y, z));
+	double dx = derivative(Functions[ActiveFunctionIndex].func_dual_2nd, wrt(x), at(x, y, z));
+	double dy = derivative(Functions[ActiveFunctionIndex].func_dual_2nd, wrt(y), at(x, y, z));
+	double dz = derivative(Functions[ActiveFunctionIndex].func_dual_2nd, wrt(z), at(x, y, z));
 
 	glm::vec3 grad = glm::vec3(dx, dy, dz);
 	float grad_length = glm::length(grad);
 
 	glm::mat3x3 hess;
 
-	hess[0][0] = derivative<2>(Functions[0].func_dual_2nd, wrt(x, x), at(x, y, z));
-	hess[0][1] = derivative<2>(Functions[0].func_dual_2nd, wrt(x, y), at(x, y, z));
-	hess[0][2] = derivative<2>(Functions[0].func_dual_2nd, wrt(x, z), at(x, y, z));
-	hess[1][0] = derivative<2>(Functions[0].func_dual_2nd, wrt(y, x), at(x, y, z));
-	hess[1][1] = derivative<2>(Functions[0].func_dual_2nd, wrt(y, y), at(x, y, z));
-	hess[1][2] = derivative<2>(Functions[0].func_dual_2nd, wrt(y, z), at(x, y, z));
-	hess[2][0] = derivative<2>(Functions[0].func_dual_2nd, wrt(z, x), at(x, y, z));
-	hess[2][1] = derivative<2>(Functions[0].func_dual_2nd, wrt(z, y), at(x, y, z));
-	hess[2][2] = derivative<2>(Functions[0].func_dual_2nd, wrt(z, z), at(x, y, z));
+	hess[0][0] = derivative<2>(Functions[ActiveFunctionIndex].func_dual_2nd, wrt(x, x), at(x, y, z));
+	hess[0][1] = derivative<2>(Functions[ActiveFunctionIndex].func_dual_2nd, wrt(x, y), at(x, y, z));
+	hess[0][2] = derivative<2>(Functions[ActiveFunctionIndex].func_dual_2nd, wrt(x, z), at(x, y, z));
+	hess[1][0] = derivative<2>(Functions[ActiveFunctionIndex].func_dual_2nd, wrt(y, x), at(x, y, z));
+	hess[1][1] = derivative<2>(Functions[ActiveFunctionIndex].func_dual_2nd, wrt(y, y), at(x, y, z));
+	hess[1][2] = derivative<2>(Functions[ActiveFunctionIndex].func_dual_2nd, wrt(y, z), at(x, y, z));
+	hess[2][0] = derivative<2>(Functions[ActiveFunctionIndex].func_dual_2nd, wrt(z, x), at(x, y, z));
+	hess[2][1] = derivative<2>(Functions[ActiveFunctionIndex].func_dual_2nd, wrt(z, y), at(x, y, z));
+	hess[2][2] = derivative<2>(Functions[ActiveFunctionIndex].func_dual_2nd, wrt(z, z), at(x, y, z));
 
 	if (UseMeanCurvature) {
 
@@ -219,6 +220,17 @@ float ImplicitSurfaceApp::AutoDiffCurvature(Geometry::Vector3D v)
 	}
 }
 
+glm::vec3 ImplicitSurfaceApp::EstimateNormal(int vertex_index)
+{
+	std::vector<trimesh::index_t> neighbours = tmesh.vertex_vertex_neighbors(vertex_index);
+	return glm::vec3(0, 0, 1);
+}
+
+float ImplicitSurfaceApp::EstimateCurvature(int vertex_index)
+{
+	return 0.0f;
+}
+
 double ImplicitSurfaceApp::Det_2x2(double a1, double a2, double b1, double b2)
 {
 	return a1* b2 - a2 * b1;
@@ -250,7 +262,27 @@ void ImplicitSurfaceApp::InitFunctions()
 
 			}
 		));
+	Functions.push_back(
+		Function_T(
+			[](Geometry::Vector3D p) {
+				double x, y, z;
+				x = p[0]; y = p[1]; z = p[2];
+				return  sin(x * z) + y - 1;
 
+			},
+			[](dual x, dual y, dual z) -> autodiff::dual {
+
+
+				return sin(x * z) + y - 1;
+
+			},
+				[](dual2nd x, dual2nd y, dual2nd z) -> autodiff::dual2nd {
+
+
+				return sin(x * z) + y - 1;
+
+			}
+			));
 	Functions.push_back(
 		Function_T(
 			[](Geometry::Vector3D p) {
@@ -477,24 +509,31 @@ void ImplicitSurfaceApp::Render()
 	{
 		glDrawElements(GL_TRIANGLES, TriangeCount * 3, GL_UNSIGNED_INT, nullptr);
 	}
-
-	//m_program.Unuse();
-
 	if (ImguiDebugNormals) {
 
 		DebugNormals();
-		
+
 	}
 	if (ImguiDebugEdges) {
 
 		DebugEdges();
 
 	}
+	m_program.Unuse();
+
+
 
 	ImGui::ShowTestWindow();
-	ImGui::Checkbox("Debug Normals",&ImguiDebugNormals);
-	ImGui::Checkbox("Debug Edges", &ImguiDebugEdges);
+	//ImGui::Checkbox("Debug Normals",&ImguiDebugNormals);
+	//ImGui::Checkbox("Debug Edges", &ImguiDebugEdges);
 	ImGui::Checkbox("Visualize Curvature", &VisualizeCurvature);
+
+	if (ImGui::Checkbox("Use Estimated Curvature", &UseAutoCurvature)) {
+	
+		LoadMeshIntoBuffer(mesh);
+
+	}
+
 	if (ImGui::Checkbox("Use Mean Curvature", &UseMeanCurvature)) {
 	
 		LoadMeshIntoBuffer(mesh);
