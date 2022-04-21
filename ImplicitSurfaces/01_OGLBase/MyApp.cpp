@@ -222,8 +222,11 @@ float ImplicitSurfaceApp::AutoDiffCurvature(Geometry::Vector3D v)
 
 glm::vec3 ImplicitSurfaceApp::EstimateNormal(int vertex_index)
 {
+
 	std::vector<trimesh::index_t> neighbours = tmesh.vertex_vertex_neighbors(vertex_index);
+	
 	return glm::vec3(0, 0, 1);
+
 }
 
 float ImplicitSurfaceApp::EstimateCurvature(int vertex_index)
