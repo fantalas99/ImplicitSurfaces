@@ -67,17 +67,21 @@ void main()
 		float x = floor(a);
 		float y = floor(255 * (a - x));
 
-		float r = 255;
-		float g = 255;
-		float b = 255;
+		float r = 0;
+		float g = 0;
+		float b = 0;
 
 		if(x == 0){r = 255; g = y; b = 0;}
-
 		if(x == 1){r = 255 - y; g = 255; b = 0;}
 		if(x == 2){r = 0; g = 255; b = y;}
-
 		if(x == 3){r = 0; g = 255 - y; b = 255;}
 		if(x == 4){r = 0; g = 0; b = 255;}
+
+		if(c == 0){
+		
+			r = 255;
+		
+		}
 
 		fs_out_col = vec4(r / 255, g / 255, b / 255, 1);
 		

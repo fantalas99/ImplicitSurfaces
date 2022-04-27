@@ -9,13 +9,14 @@
 #include <OpenMesh/Core/Mesh/TriMeshT.hh>
 #include <OpenMesh/Core/Mesh/TriMesh_ArrayKernelT.hh>
 #include <OpenMesh/Core/Mesh/Handles.hh>
-
 #include "Dependencies/TriMesh/trimesh.h"
 
+#include "HalfEdgeMesh.h"
 
 
 // C++ includes
 #include <memory>
+
 
 // GLEW
 #include <GL/glew.h>
@@ -37,6 +38,7 @@
 // mesh
 #include "includes/ObjParser_OGL3.h"
 
+class HalfEdgeMesh;
 class Function_T;
 
 class ImplicitSurfaceApp
@@ -95,7 +97,11 @@ protected:
 
 	std::unique_ptr<Mesh> m_mesh;
 
+	typedef std::array<size_t, 3> Triangle;
+
 	trimesh::trimesh_t tmesh;
+
+	HalfEdgeMesh hmesh;
 
 	std::vector<Function_T> Functions;
 
@@ -116,16 +122,27 @@ protected:
 	void DebugEdges();
 	void GenerateMesh(int function_index);
 
+	std::vector< std::array<size_t, 3>> GetAllTriangles(int vertex_id, Geometry::TriMesh mesh);
+
+	glm::vec3 ConvertVector(Geometry::Vector3D v) {
+	
+		return glm::vec3(v[0], v[1], v[2]);
+
+	}
+	float GetTriangleArea(std::array<size_t, 3> tri, Geometry::TriMesh mesh);
+	float GetTriangleAngle(Triangle t);
+
 	bool UseNormalScale = true;
 	bool ImguiDebugEdges = false;
 	bool ImguiDebugNormals = false;
 	bool VisualizeCurvature = true;
 	bool UseAutoNormals = true;
-	bool UseAutoCurvature = true;
+	bool UseAutoCurvature = false;
 	bool UseMeanCurvature = true;
 	int ActiveFunctionIndex = 0;
 	int DebugVertexCount = 0;
-	std::vector<std::string> FunctionNames = {"Surface One","Surface Two", "Surface Three"};
+	std::vector<std::string> FunctionNames = {"Surface One","Surface Two", "Surface Three", "Surface Four"};
+
 
 	struct MyTraits : public OpenMesh::DefaultTraits {
 		using Point = OpenMesh::Vec3d; // the default would be Vec3f

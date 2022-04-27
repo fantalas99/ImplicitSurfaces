@@ -5,7 +5,6 @@
 #include <autodiff/forward/dual.hpp>
 #include "Function.h"
 #include "Dependencies/TriMesh/trimesh.cpp"
-
 #include <array>
 #include <list>
 #include <tuple>
@@ -31,16 +30,21 @@ void ImplicitSurfaceApp::LoadMeshIntoBuffer(Geometry::TriMesh m)
 	auto_normals.clear();
 	auto_curvatures.clear();
 
+	hmesh = HalfEdgeMesh();
+
 	TriangeCount = m.triangles().size() * 3;
 
 	std::vector<int> indices(TriangeCount);
-
-	using Triangle = std::array<size_t, 3>;
 
 	int tricount = m.triangles().size();
 	std::vector<trimesh::triangle_t> tris;
 	std::vector<trimesh::edge_t> edges;
 
+	for (int i = 0; i < m.points().size(); ++i) {
+		
+		hmesh.add_vertex(HalfEdgeMesh::Vertex(glm::vec3(m.points()[i][0], m.points()[i][1], m.points()[i][2])));
+
+	}
 	for (Triangle t : m.triangles())
 	{
 		indices.push_back(t[0]);
@@ -51,10 +55,16 @@ void ImplicitSurfaceApp::LoadMeshIntoBuffer(Geometry::TriMesh m)
 		tri.v[1] = t[1];
 		tri.v[2] = t[2];
 		tris.push_back(tri);
-	
+
+		hmesh.add_edge(t[0], -1, t[1]);
+		hmesh.add_edge(t[1], -1, t[2]);
+		hmesh.add_edge(t[2], -1, t[0]);
 	}
 
 	trimesh::unordered_edges_from_triangles(tricount, &tris[0], edges);
+
+	tmesh = trimesh::trimesh_t();
+	
 
 	tmesh.build(m.points().size(), tricount, &tris[0], edges.size(), &edges[0]);
 
@@ -75,7 +85,7 @@ void ImplicitSurfaceApp::LoadMeshIntoBuffer(Geometry::TriMesh m)
 	float max_curv = -100000;
 	float min_curv = 100000;
 
-	for (float f : auto_curvatures) {
+	for (float f : UseAutoNormals ? auto_curvatures : estimated_curvatures) {
 
 		if (f > max_curv) {
 
@@ -113,7 +123,11 @@ void ImplicitSurfaceApp::LoadMeshIntoBuffer(Geometry::TriMesh m)
 			curv_norm = 0.5 - (curv / (min_curv * 2));
 
 		}
-
+		if (curv_norm > 1 || curv_norm < 0) {
+		
+			std::cout << "ERROR CURVATURE NOT NORMALIZED " << curv_norm << std::endl;
+		
+		}
 		vertices.push_back(Vertex{ glm::vec3(v[0],v[1],v[2]), n , glm::vec2(), curv_norm});
 
 	}
@@ -223,15 +237,26 @@ float ImplicitSurfaceApp::AutoDiffCurvature(Geometry::Vector3D v)
 glm::vec3 ImplicitSurfaceApp::EstimateNormal(int vertex_index)
 {
 
-	std::vector<trimesh::index_t> neighbours = tmesh.vertex_vertex_neighbors(vertex_index);
-	
 	return glm::vec3(0, 0, 1);
-
 }
 
 float ImplicitSurfaceApp::EstimateCurvature(int vertex_index)
 {
-	return 0.0f;
+
+	float area = 0;
+	float angle = 2 * M_PI;
+
+	std::vector<Triangle> tris = GetAllTriangles(vertex_index, mesh);
+
+	for (const Triangle & t : tris) {
+	
+		area += GetTriangleArea(t, mesh);
+		angle -= GetTriangleAngle(t);
+	
+	}
+
+	float curv = angle * (3 / (area));
+	return curv;
 }
 
 double ImplicitSurfaceApp::Det_2x2(double a1, double a2, double b1, double b2)
@@ -249,22 +274,45 @@ void ImplicitSurfaceApp::InitFunctions()
 			[](Geometry::Vector3D p) {
 				double x, y, z;
 				x = p[0]; y = p[1]; z = p[2];
-				return  x * x + y * y + z - 1;
+				return  x * x + y * y + z * z - 1;
 
 			},
 			[](dual x, dual y, dual z) -> autodiff::dual {
 
 				
-				return x * x + y * y + z - 1;
+				return x * x + y * y + z * z - 1;
 
 			},
 			[](dual2nd x, dual2nd y, dual2nd z) -> autodiff::dual2nd {
 
 
-				return x * x + y * y + z - 1;
+				return x * x + y * y + z * z - 1;
 
-			}
-		));
+			}, 5, 50
+		)
+	);
+
+	Functions.push_back(
+		Function_T(
+			[](Geometry::Vector3D p) {
+		double x, y, z;
+		x = p[0]; y = p[1]; z = p[2];
+		return  x * x + y * y + z- 1;
+
+	},
+			[](dual x, dual y, dual z) -> autodiff::dual {
+
+
+		return x * x + y * y + z - 1;
+
+	},
+		[](dual2nd x, dual2nd y, dual2nd z) -> autodiff::dual2nd {
+
+
+		return x * x + y * y + z - 1;
+
+	}, 5, 50
+	));
 	Functions.push_back(
 		Function_T(
 			[](Geometry::Vector3D p) {
@@ -284,7 +332,7 @@ void ImplicitSurfaceApp::InitFunctions()
 
 				return sin(x * z) + y - 1;
 
-			}
+			}, 5, 50
 			));
 	Functions.push_back(
 		Function_T(
@@ -305,7 +353,7 @@ void ImplicitSurfaceApp::InitFunctions()
 
 		return 12.5990051961515 * pow(x, 2) * pow(y, 2) * pow(z, 2) + 10.0000000000000 * pow(x, 2) * pow(y, 2) + 2.34314575050762 * pow(x, 2) * pow(z, 2) + 10.0000000000000 * pow(y, 2) * pow(z, 2) + (x - 0.500000000000000) * pow(x, 2) + (2 * y - 0.400000000000000) * pow(y, 2) + (z - 0.500000000000000) * pow(z, 2);
 
-	}
+	}, 5, 50
 	));
 
 }
@@ -354,13 +402,88 @@ void ImplicitSurfaceApp::DebugEdges() {
 
 void ImplicitSurfaceApp::GenerateMesh(int function_index)
 {
-
-	std::array<Geometry::Vector3D, 2> boundingBox = { Geometry::Vector3D(-5,-5,-5), Geometry::Vector3D(5,5,5) };
-
-	mesh = IMC::marching_cubes(Functions[function_index].func, 0, boundingBox, { 100, 100, 100 }, true);
+	int acc = Functions[function_index].accuracy;
+	mesh = IMC::marching_cubes(Functions[function_index].func, 0, Functions[function_index].boundingBox, { acc, acc, acc }, true);
 
 	LoadMeshIntoBuffer(mesh);
 
+}
+
+std::vector<std::array<size_t, 3>> ImplicitSurfaceApp::GetAllTriangles(int vertex_id, Geometry::TriMesh mesh)
+{
+	std::vector<std::array<size_t, 3>> out;
+
+	for (std::array<size_t, 3> tri : mesh.triangles()) {
+
+		for (size_t i = 0; i < 3; ++i) {
+		
+			size_t index_0 = tri[i];
+			if (index_0 == vertex_id) {
+				
+				size_t index_1;
+				size_t index_2;
+				if (index_0 == tri[0]) {
+				
+					index_1 = tri[1];
+					index_2 = tri[2];
+
+				}
+				else if (index_0 == tri[1]) {
+				
+					index_1 = tri[0];
+					index_2 = tri[2];
+				
+				}
+				else if (index_0 == tri[2]) {
+				
+					index_1 = tri[0];
+					index_2 = tri[1];
+
+				}
+				if (index_0 != index_1 && index_1 != index_2 && index_0 != index_2) {
+					out.push_back(std::array<size_t, 3>{index_0, index_1, index_2});
+				}
+				
+			}
+		}
+	}
+
+	return out;
+
+}
+
+float ImplicitSurfaceApp::GetTriangleArea(std::array<size_t, 3> tri, Geometry::TriMesh mesh)
+{
+	{
+
+		std::vector<glm::vec3> pos;
+		for (size_t i : tri) {
+
+			pos.push_back(glm::vec3(mesh.points()[i][0], mesh.points()[i][1], mesh.points()[i][2]));
+
+		}
+
+		return 0.5f * glm::length((glm::cross(pos[0] - pos[1], pos[0] - pos[2])));
+
+	}
+}
+
+float ImplicitSurfaceApp::GetTriangleAngle(Triangle t)
+{
+	glm::vec3 side1 = ConvertVector(mesh.points()[t[0]]) - ConvertVector(mesh.points()[t[1]]);
+	glm::vec3 side2 = ConvertVector(mesh.points()[t[0]]) - ConvertVector(mesh.points()[t[2]]);
+	float sides = (glm::length(side1) * glm::length(side2));
+
+	float x = (glm::dot(side1, side2) / sides);
+
+	if (x > 1.f) {
+		return 0;
+	}
+	if(x < -1){
+		return M_PI;
+	}
+
+	return glm::acos(x);
 }
 
 void ImplicitSurfaceApp::DrawLine(glm::vec3 p_1, glm::vec3 p_2, float w = 2) {
@@ -479,12 +602,14 @@ void ImplicitSurfaceApp::Clean()
 
 void ImplicitSurfaceApp::Update()
 {
+
 	static Uint32 last_time = SDL_GetTicks();
 	float delta_time = (SDL_GetTicks() - last_time) / 1000.0f;
 
 	m_camera.Update(delta_time);
 
 	last_time = SDL_GetTicks();
+
 }
 
 void ImplicitSurfaceApp::Render()
