@@ -177,7 +177,6 @@ void trimesh_t::build( const unsigned long num_vertices, const unsigned long num
             outgoing.erase( outgoing_hei );
         }
     }
-    
 #ifndef NDEBUG
     for( std::map< index_t, std::set< index_t > >::const_iterator it = vertex2outgoing_boundary_hei.begin(); it != vertex2outgoing_boundary_hei.end(); ++it )
     {

@@ -128,6 +128,7 @@ void ImplicitSurfaceApp::LoadMeshIntoBuffer(Geometry::TriMesh m)
 			std::cout << "ERROR CURVATURE NOT NORMALIZED " << curv_norm << std::endl;
 		
 		}
+
 		vertices.push_back(Vertex{ glm::vec3(v[0],v[1],v[2]), n , glm::vec2(), curv_norm});
 
 	}
@@ -155,7 +156,8 @@ void ImplicitSurfaceApp::LoadMeshIntoBuffer(Geometry::TriMesh m)
 	);
 }
 
-glm::vec3 ImplicitSurfaceApp::AutoDiffNormal(Geometry::Vector3D v) {
+glm::vec3 ImplicitSurfaceApp::AutoDiffNormal(Geometry::Vector3D v) 
+{
 
 	using namespace autodiff;
 
@@ -238,6 +240,7 @@ glm::vec3 ImplicitSurfaceApp::EstimateNormal(int vertex_index)
 {
 
 	return glm::vec3(0, 0, 1);
+
 }
 
 float ImplicitSurfaceApp::EstimateCurvature(int vertex_index)
@@ -311,7 +314,7 @@ void ImplicitSurfaceApp::InitFunctions()
 
 		return x * x + y * y + z - 1;
 
-	}, 5, 50
+	}, 3, 40
 	));
 	Functions.push_back(
 		Function_T(
@@ -332,7 +335,7 @@ void ImplicitSurfaceApp::InitFunctions()
 
 				return sin(x * z) + y - 1;
 
-			}, 5, 50
+			}, 2, 30
 			));
 	Functions.push_back(
 		Function_T(
@@ -353,7 +356,7 @@ void ImplicitSurfaceApp::InitFunctions()
 
 		return 12.5990051961515 * pow(x, 2) * pow(y, 2) * pow(z, 2) + 10.0000000000000 * pow(x, 2) * pow(y, 2) + 2.34314575050762 * pow(x, 2) * pow(z, 2) + 10.0000000000000 * pow(y, 2) * pow(z, 2) + (x - 0.500000000000000) * pow(x, 2) + (2 * y - 0.400000000000000) * pow(y, 2) + (z - 0.500000000000000) * pow(z, 2);
 
-	}, 5, 50
+	}, 3, 25
 	));
 
 }
@@ -459,7 +462,7 @@ float ImplicitSurfaceApp::GetTriangleArea(std::array<size_t, 3> tri, Geometry::T
 		std::vector<glm::vec3> pos;
 		for (size_t i : tri) {
 
-			pos.push_back(glm::vec3(mesh.points()[i][0], mesh.points()[i][1], mesh.points()[i][2]));
+			pos.push_back(ConvertVector(mesh.points()[i]));
 
 		}
 
@@ -652,11 +655,11 @@ void ImplicitSurfaceApp::Render()
 
 
 	ImGui::ShowTestWindow();
-	//ImGui::Checkbox("Debug Normals",&ImguiDebugNormals);
-	//ImGui::Checkbox("Debug Edges", &ImguiDebugEdges);
+	ImGui::Checkbox("Debug Normals",&ImguiDebugNormals);
+	ImGui::Checkbox("Debug Edges", &ImguiDebugEdges);
 	ImGui::Checkbox("Visualize Curvature", &VisualizeCurvature);
 
-	if (ImGui::Checkbox("Use Estimated Curvature", &UseAutoCurvature)) {
+	if (ImGui::Checkbox("Use Differentiated Curvature", &UseAutoCurvature)) {
 	
 		LoadMeshIntoBuffer(mesh);
 

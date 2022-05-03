@@ -3,14 +3,8 @@
 // MarchingCubes
 #include "Dependencies/implicit_marching_cubes-master/mc.h"
 
-// OpenMesh
-#include <OpenMesh/Core/Mesh/Traits.hh>
-#include <OpenMesh/Core/Mesh/DefaultTriMesh.hh>
-#include <OpenMesh/Core/Mesh/TriMeshT.hh>
-#include <OpenMesh/Core/Mesh/TriMesh_ArrayKernelT.hh>
-#include <OpenMesh/Core/Mesh/Handles.hh>
+// Mesh
 #include "Dependencies/TriMesh/trimesh.h"
-
 #include "HalfEdgeMesh.h"
 
 
@@ -143,14 +137,6 @@ protected:
 	int DebugVertexCount = 0;
 	std::vector<std::string> FunctionNames = {"Surface One","Surface Two", "Surface Three", "Surface Four"};
 
-
-	struct MyTraits : public OpenMesh::DefaultTraits {
-		using Point = OpenMesh::Vec3d; // the default would be Vec3f
-		using Normal = OpenMesh::Vec3d;
-		VertexTraits{
-		  double mean;              // approximated mean curvature
-		};
-	};
 
 };
 

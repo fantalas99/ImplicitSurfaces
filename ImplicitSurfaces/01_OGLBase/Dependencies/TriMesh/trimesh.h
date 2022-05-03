@@ -104,7 +104,8 @@ public:
         {
             const halfedge_t& he = m_halfedges[ hei ];
             result.push_back( he.to_vertex );
-            
+            std::cout << "SEARCHING " << start_hei << "  CURRENT: " << hei << " NEXT: " << m_halfedges[he.opposite_he].next_he << std::endl;
+
             hei = m_halfedges[ he.opposite_he ].next_he;
             if( hei == start_hei ) break;
         }
