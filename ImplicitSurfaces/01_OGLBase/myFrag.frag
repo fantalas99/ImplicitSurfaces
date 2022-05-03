@@ -5,6 +5,7 @@ in vec3 vs_out_pos;
 in vec3 vs_out_norm;
 in vec2 vs_out_tex;
 in float vs_out_curv;
+in float vs_out_curv_est;
 
 out vec4 fs_out_col;
 
@@ -18,6 +19,7 @@ uniform vec3 Ld = vec3(0.3,0.3,0.3);
 uniform sampler2D texImage;
 uniform vec3 viewPos;
 uniform int showCurv;
+uniform int useEstimatedCurv;
 
 uniform vec3 point_light_location = vec3(0,2,1);
 uniform vec3 point_light_color = vec3(0.4,0.4,0.4);
@@ -61,8 +63,20 @@ void main()
 	
 
 	if(showCurv == 1){
-	
-		float c = vs_out_curv;
+
+		float c;
+
+		if(useEstimatedCurv == 1){
+
+			c = vs_out_curv_est;
+		}
+
+		else{
+
+			c = vs_out_curv;
+
+		}
+
 		float a = (1 - c) / 0.25;
 		float x = floor(a);
 		float y = floor(255 * (a - x));
@@ -77,18 +91,13 @@ void main()
 		if(x == 3){r = 0; g = 255 - y; b = 255;}
 		if(x == 4){r = 0; g = 0; b = 255;}
 
-		if(c == 0){
-		
-			r = 255;
-		
-		}
 
 		fs_out_col = vec4(r / 255, g / 255, b / 255, 1);
 		
 	}
 	else {
 
-		fs_out_col = vec4(ambient + diffuse + specular , 1) * texture(texImage, vs_out_tex);
+		fs_out_col = vec4(ambient + diffuse + specular , 1) * vec4(0, 1, 0, 1);
 
 	}
 

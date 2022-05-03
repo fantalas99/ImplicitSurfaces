@@ -1,5 +1,5 @@
 ﻿#include <GL\glew.h>
-#include <GL\GL.h>
+//#include <GL\GL.h>
 #include "TextureObject.h"
 
 #include <SDL.h>

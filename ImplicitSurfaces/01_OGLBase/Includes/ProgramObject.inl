@@ -1,7 +1,7 @@
 ﻿#include <typeinfo>
 
 #include <GL\glew.h>
-#include <GL\GL.h>
+//#include <GL\GL.h>
 
 #include <iostream>
 

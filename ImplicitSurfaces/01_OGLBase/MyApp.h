@@ -58,20 +58,12 @@ public:
 protected:
 
 	ProgramObject		m_program;			// mesh shader
-	ProgramObject		m_programSkybox;	// skybox shader
 
 	VertexArrayObject	m_CubeVao;			// VAO
 	IndexBuffer			m_CubeIndices;		// index buffer
 	ArrayBuffer			m_CubeVertexBuffer;	// VBO
 
-	//VertexArrayObject		m_DebugVao;			// VAO
-	//IndexBuffer			m_DebugIndices;		// index buffer
-	//ArrayBuffer			m_DebugVertexBuffer;// VBO
-
 	gCamera				m_camera;
-
-	Texture2D			m_Texture_Red;
-	Texture2D			m_Texture_Green;
 
 	int TriangeCount;
 
@@ -87,15 +79,12 @@ protected:
 		glm::vec3 n;
 		glm::vec2 t;
 		float c;
+		float c_est;
 	};
 
 	std::unique_ptr<Mesh> m_mesh;
 
 	typedef std::array<size_t, 3> Triangle;
-
-	trimesh::trimesh_t tmesh;
-
-	HalfEdgeMesh hmesh;
 
 	std::vector<Function_T> Functions;
 
@@ -105,13 +94,13 @@ protected:
 	glm::vec3 EstimateNormal(int vertex_index);
 	float EstimateCurvature(int vertex_index);
 
+	std::vector<Triangle> OrderTriangles(std::vector<Triangle> tris);
+
 	double Det_2x2(double a1, double a2, double b1, double b2);
 
 	void InitFunctions();
-	void DrawCoordinateSystem();
 	void InitShaders();
 	void LoadMeshIntoBuffer(Geometry::TriMesh m);
-	void DrawLine(glm::vec3 p_1, glm::vec3 p_2, float w);
 	void DebugNormals();
 	void DebugEdges();
 	void GenerateMesh(int function_index);
@@ -125,6 +114,9 @@ protected:
 	}
 	float GetTriangleArea(std::array<size_t, 3> tri, Geometry::TriMesh mesh);
 	float GetTriangleAngle(Triangle t);
+	glm::vec3 GetTriangleNormal(Triangle t);
+
+	bool IsValidTriangle(Triangle t);
 
 	bool UseNormalScale = true;
 	bool ImguiDebugEdges = false;

@@ -29,45 +29,23 @@ void ImplicitSurfaceApp::LoadMeshIntoBuffer(Geometry::TriMesh m)
 
 	auto_normals.clear();
 	auto_curvatures.clear();
-
-	hmesh = HalfEdgeMesh();
+	estimated_curvatures.clear();
+	estimated_normals.clear();
 
 	TriangeCount = m.triangles().size() * 3;
 
 	std::vector<int> indices(TriangeCount);
 
 	int tricount = m.triangles().size();
-	std::vector<trimesh::triangle_t> tris;
-	std::vector<trimesh::edge_t> edges;
 
-	for (int i = 0; i < m.points().size(); ++i) {
-		
-		hmesh.add_vertex(HalfEdgeMesh::Vertex(glm::vec3(m.points()[i][0], m.points()[i][1], m.points()[i][2])));
-
-	}
 	for (Triangle t : m.triangles())
 	{
 		indices.push_back(t[0]);
 		indices.push_back(t[1]);
 		indices.push_back(t[2]);
-		trimesh::triangle_t tri;
-		tri.v[0] = t[0];
-		tri.v[1] = t[1];
-		tri.v[2] = t[2];
-		tris.push_back(tri);
 
-		hmesh.add_edge(t[0], -1, t[1]);
-		hmesh.add_edge(t[1], -1, t[2]);
-		hmesh.add_edge(t[2], -1, t[0]);
 	}
-
-	trimesh::unordered_edges_from_triangles(tricount, &tris[0], edges);
-
-	tmesh = trimesh::trimesh_t();
 	
-
-	tmesh.build(m.points().size(), tricount, &tris[0], edges.size(), &edges[0]);
-
 	for (int i = 0; i < m.points().size(); ++i) {
 
 		Geometry::Vector3D v = m.points()[i];
@@ -81,55 +59,46 @@ void ImplicitSurfaceApp::LoadMeshIntoBuffer(Geometry::TriMesh m)
 
 	}
 
-
 	float max_curv = -100000;
 	float min_curv = 100000;
-
-	for (float f : UseAutoNormals ? auto_curvatures : estimated_curvatures) {
-
-		if (f > max_curv) {
-
-			max_curv = f;
-
-		}
-		if (f < min_curv) {
-		
-			min_curv = f;
-
-		}
-
-	}
 
 	for (int i = 0; i < m.points().size(); ++i) {
 	
 		Geometry::Vector3D v = m.points()[i];
 		glm::vec3 n = (UseAutoNormals ? auto_normals[i] : estimated_normals[i]);
-		float curv = UseAutoCurvature ? auto_curvatures[i] : estimated_curvatures[i];
+		float curv =  auto_curvatures[i];
+		float curv_est = estimated_curvatures[i];
 		float curv_norm = 0;
+		float curv_norm_est = 0;
 		if (UseNormalScale) {
 
 			max_curv = 1;
 			min_curv = -1;
-			if (curv > 1) { curv = 1; }
-			if (curv < -1) { curv = -1; }
+			if (curv > 0.9) { curv = 0.9; }
+			if (curv < -0.9) { curv = -0.9; }
+			if (curv_est > 0.9) { curv_est = 0.9; }
+			if (curv_est < -0.9) { curv_est = -0.9; }
+
 		}
 		if (curv >= 0) {
 		
 			curv_norm = 0.5 + (curv / (max_curv * 2));
-
+			curv_norm_est = 0.5 + (curv_est / (max_curv * 2));
 		}
 		else {
 
 			curv_norm = 0.5 - (curv / (min_curv * 2));
+			curv_norm_est = 0.5 - (curv_est / (min_curv * 2));
+
 
 		}
-		if (curv_norm > 1 || curv_norm < 0) {
+		if (curv_norm_est > 1 || curv_norm_est < 0) {
 		
-			std::cout << "ERROR CURVATURE NOT NORMALIZED " << curv_norm << std::endl;
+			std::cout << "ERROR CURVATURE NOT NORMALIZED " << curv_norm_est << std::endl;
 		
 		}
 
-		vertices.push_back(Vertex{ glm::vec3(v[0],v[1],v[2]), n , glm::vec2(), curv_norm});
+		vertices.push_back(Vertex{ glm::vec3(v[0],v[1],v[2]), n , glm::vec2(), curv_norm, curv_norm_est});
 
 	}
 
@@ -150,7 +119,7 @@ void ImplicitSurfaceApp::LoadMeshIntoBuffer(Geometry::TriMesh m)
 			{ CreateAttribute<1, glm::vec3, (sizeof(glm::vec3)), sizeof(Vertex)>, m_CubeVertexBuffer },
 			{ CreateAttribute<2, glm::vec2, (2 * sizeof(glm::vec3)), sizeof(Vertex)>, m_CubeVertexBuffer },
 			{ CreateAttribute<3, float, (2 * sizeof(glm::vec3)) + sizeof(glm::vec2), sizeof(Vertex)>, m_CubeVertexBuffer },
-
+			{ CreateAttribute<4, float, (2 * sizeof(glm::vec3)) + sizeof(glm::vec2) + sizeof(float), sizeof(Vertex)>, m_CubeVertexBuffer },
 		},
 		m_CubeIndices
 	);
@@ -245,21 +214,88 @@ glm::vec3 ImplicitSurfaceApp::EstimateNormal(int vertex_index)
 
 float ImplicitSurfaceApp::EstimateCurvature(int vertex_index)
 {
-
-	float area = 0;
-	float angle = 2 * M_PI;
-
-	std::vector<Triangle> tris = GetAllTriangles(vertex_index, mesh);
-
-	for (const Triangle & t : tris) {
+	if(UseMeanCurvature){
 	
-		area += GetTriangleArea(t, mesh);
-		angle -= GetTriangleAngle(t);
+		std::vector<Triangle> tris = GetAllTriangles(vertex_index, mesh);
+		tris = OrderTriangles(tris);
+
+		float numerator = 0;
+		float area = 0;
+
+		for (int i = 0; i < tris.size(); ++i) {
+
+			if (IsValidTriangle(tris[i])) {
+
+				glm::vec3 side = ConvertVector(mesh.points()[tris[i][0]] - mesh.points()[tris[i][1]]);
+				glm::vec3 normal = GetTriangleNormal(tris[i]);
+				glm::vec3 prev_normal = GetTriangleNormal(tris[i == 0 ? tris.size() - 1 : i - 1]);
+
+				float angle;
+				float f = dot(normal, prev_normal) / (length(normal) * length(prev_normal));
+				if (f < 0.99 && f > -0.99) 
+				{
+					angle = acos(f);
+				}
+				else if (f >= 0.99) 
+				{
+					angle = 0;
+				}
+				else 
+				{
+					angle = M_PI;
+				}
+				float side_length = length(side);
+
+				numerator += (angle * side_length);
+				area += GetTriangleArea(tris[i], mesh);
+
+			}
+
+		}
+
+		return (3 * numerator) / (4 * area);
 	
 	}
+	else {
 
-	float curv = angle * (3 / (area));
-	return curv;
+		float area = 0;
+		float angle = 2 * M_PI;
+
+		std::vector<Triangle> tris = GetAllTriangles(vertex_index, mesh);
+
+		for (const Triangle& t : tris) {
+
+			area += GetTriangleArea(t, mesh);
+			angle -= GetTriangleAngle(t);
+
+		}
+
+		float curv = angle * (3 / (area));
+		return curv;
+
+	}
+}
+
+std::vector<std::array<size_t, 3>> ImplicitSurfaceApp::OrderTriangles(std::vector<Triangle> tris)
+{
+	std::vector<Triangle> out_tris;
+	Triangle & current_tri = tris[0];
+	out_tris.push_back(current_tri);
+	
+	for (int i = 1; i < tris.size(); ++i) {
+	
+		for (const Triangle& t : tris) {
+		
+			if ((t[2] == current_tri[1] || t[1] == current_tri[1] || t[2] == current_tri[2] || t[1] == current_tri[2]) && ! std::count(out_tris.begin(), out_tris.end(), t))
+			{
+				current_tri = t;
+				out_tris.push_back(current_tri);
+				break;
+			}
+		}
+	}
+
+	return out_tris;
 }
 
 double ImplicitSurfaceApp::Det_2x2(double a1, double a2, double b1, double b2)
@@ -270,7 +306,6 @@ double ImplicitSurfaceApp::Det_2x2(double a1, double a2, double b1, double b2)
 void ImplicitSurfaceApp::InitFunctions()
 {
 
-	//std::function<autodiff::dual(Geometry::Vector3D)> d = 
 	using namespace autodiff;
 	Functions.push_back(
 		Function_T(
@@ -489,58 +524,14 @@ float ImplicitSurfaceApp::GetTriangleAngle(Triangle t)
 	return glm::acos(x);
 }
 
-void ImplicitSurfaceApp::DrawLine(glm::vec3 p_1, glm::vec3 p_2, float w = 2) {
-
-	//glLineWidth(w);
-	//glBegin(GL_LINES);
-	glVertex3f(p_1.x, p_1.y, p_1.z);
-	glVertex3f(p_2.x, p_2.y, p_2.z);
-	//glEnd();
+glm::vec3 ImplicitSurfaceApp::GetTriangleNormal(Triangle t)
+{
+	return cross(ConvertVector(mesh.points()[t[0]] - mesh.points()[t[1]]), ConvertVector(mesh.points()[t[0]] - mesh.points()[t[2]]));
 }
 
-void ImplicitSurfaceApp::DrawCoordinateSystem()
+bool ImplicitSurfaceApp::IsValidTriangle(Triangle t)
 {
-	// draw some lines
-	glColor3f(1.0, 0.0, 0.0); // red x
-	glBegin(GL_LINES);
-	// x aix
-
-	glVertex3f(-4.0, 0.0f, 0.0f);
-	glVertex3f(4.0, 0.0f, 0.0f);
-
-	glVertex3f(4.0, 0.0f, 0.0f);
-	glVertex3f(3.0, 1.0f, 0.0f);
-
-	glVertex3f(4.0, 0.0f, 0.0f);
-	glVertex3f(3.0, -1.0f, 0.0f);
-	glEnd();
-
-	// y 
-	glColor3f(0.0, 1.0, 0.0); // green y
-	glBegin(GL_LINES);
-	glVertex3f(0.0, -4.0f, 0.0f);
-	glVertex3f(0.0, 4.0f, 0.0f);
-
-	glVertex3f(0.0, 4.0f, 0.0f);
-	glVertex3f(1.0, 3.0f, 0.0f);
-
-	glVertex3f(0.0, 4.0f, 0.0f);
-	glVertex3f(-1.0, 3.0f, 0.0f);
-	glEnd();
-
-	// z 
-	glColor3f(0.0, 0.0, 1.0); // blue z
-	glBegin(GL_LINES);
-	glVertex3f(0.0, 0.0f, -4.0f);
-	glVertex3f(0.0, 0.0f, 4.0f);
-
-
-	glVertex3f(0.0, 0.0f, 4.0f);
-	glVertex3f(0.0, 1.0f, 3.0f);
-
-	glVertex3f(0.0, 0.0f, 4.0f);
-	glVertex3f(0.0, -1.0f, 3.0f);
-	glEnd();
+	return t[0] != t[1] && t[0] != t[2] && t[1] != t[2];
 }
 
 void ImplicitSurfaceApp::InitShaders()
@@ -557,40 +548,21 @@ void ImplicitSurfaceApp::InitShaders()
 		{ 1, "vs_in_norm" },			// VAO 1-es csatorna menjen a vs_in_norm-ba
 		{ 2, "vs_in_tex" },				// VAO 2-es csatorna menjen a vs_in_tex-be
 		{ 3, "vs_in_curv" },			// VAO 3-es csatorna menjen a vs_in_curv-be
+		{ 4, "vs_in_curv_est" },		// VAO 4-es csatorna menjen a vs_in_curv_est-be
 	});
 
 	m_program.LinkProgram();
 
-	// shader program rövid létrehozása, egyetlen függvényhívással a fenti három:
-	m_programSkybox.Init(
-		{
-			{ GL_VERTEX_SHADER, "skybox.vert" },
-			{ GL_FRAGMENT_SHADER, "skybox.frag" }
-		},
-		{
-			{ 0, "vs_in_pos" },				// VAO 0-as csatorna menjen a vs_in_pos-ba
-		}
-	);
 }
 
 bool ImplicitSurfaceApp::Init()
 {
 	// törlési szín legyen kékes
 	glClearColor(0.125f, 0.25f, 0.5f, 1.0f);
-
-	//glEnable(GL_CULL_FACE); 
-	// kapcsoljuk be a hatrafele nezo lapok eldobasat
 	glEnable(GL_DEPTH_TEST); // mélységi teszt bekapcsolása (takarás)
 
 	InitShaders();
 	InitFunctions();
-
-	// egyéb  betöltése
-	m_Texture_Red.FromFile("assets/red.jpg");
-	m_Texture_Green.FromFile("assets/green.jpg");
-
-	//m_mesh = std::unique_ptr<Mesh>(ObjParser::parse("assets/Suzanne.obj"));
-	//m_mesh->initBuffers();
 	
 	m_camera.SetProj(glm::radians(60.0f), 640.0f / 480.0f, 0.01f, 1000.0f);
 
@@ -623,10 +595,10 @@ void ImplicitSurfaceApp::Render()
 	glm::mat4 MeshWorld = glm::mat4(1.0f);
 
 	m_program.Use();
-	m_program.SetTexture("texImage", 0, m_Texture_Red);
 	m_program.SetUniform("MVP", viewProj * MeshWorld);
 	m_program.SetUniform("world", MeshWorld);
 	m_program.SetUniform("showCurv", VisualizeCurvature ? 1 : 0);
+	m_program.SetUniform("useEstimatedCurv", UseAutoCurvature ? 0 : 1);
 	m_program.SetUniform("worldIT", glm::inverse(glm::transpose(MeshWorld)));
 	m_program.SetUniform("viewPos", m_camera.GetEye());
 
@@ -634,20 +606,18 @@ void ImplicitSurfaceApp::Render()
 
 	glm::mat4 cubeWorld;
 
-	
-	m_program.SetTexture("texImage", 0, m_Texture_Green);
 
 	{
 		glDrawElements(GL_TRIANGLES, TriangeCount * 3, GL_UNSIGNED_INT, nullptr);
 	}
 	if (ImguiDebugNormals) {
 
-		DebugNormals();
+		//DebugNormals();
 
 	}
 	if (ImguiDebugEdges) {
 
-		DebugEdges();
+		//DebugEdges();
 
 	}
 	m_program.Unuse();
@@ -661,7 +631,7 @@ void ImplicitSurfaceApp::Render()
 
 	if (ImGui::Checkbox("Use Differentiated Curvature", &UseAutoCurvature)) {
 	
-		LoadMeshIntoBuffer(mesh);
+		//LoadMeshIntoBuffer(mesh);
 
 	}
 

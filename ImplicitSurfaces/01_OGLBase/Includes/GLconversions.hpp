@@ -1,7 +1,7 @@
 ﻿#pragma once
 
 #include <GL\glew.h>
-#include <GL\GL.h>
+//#include <GL\GL.h>
 
 #include <utility>
 #include <string>
@@ -66,7 +66,7 @@ using IsValidBaseType = std::enable_if_t<
 
 */
 
-template <typename T> constexpr GLenum NativeTypeToOpenGLType() { static_assert(true, "Non-supported vertex attribute type"); }
+template <typename T> constexpr GLenum NativeTypeToOpenGLType() { static_assert(true, "Non-supported vertex attribute type"); return false }
 template <> constexpr GLenum NativeTypeToOpenGLType<float>() { return GL_FLOAT; }
 template <> constexpr GLenum NativeTypeToOpenGLType<double>() { return GL_DOUBLE; }
 

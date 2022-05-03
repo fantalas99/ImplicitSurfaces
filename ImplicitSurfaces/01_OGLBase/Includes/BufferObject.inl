@@ -1,7 +1,7 @@
 ﻿#include "BufferObject.h"
 
 #include <GL\glew.h>
-#include <GL\GL.h>
+//#include <GL\GL.h>
 
 template <BufferType target, BufferUsage usage>
 GLuint BufferObject<target, usage>::g_lastBound = 0;
