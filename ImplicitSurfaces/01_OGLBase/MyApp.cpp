@@ -15,7 +15,6 @@
 ImplicitSurfaceApp::ImplicitSurfaceApp(void)
 {
 	m_camera.SetView(glm::vec3(5, 5, 5), glm::vec3(0, 0, 0), glm::vec3(0, 1, 0));
-	m_mesh = nullptr;
 }
 
 ImplicitSurfaceApp::~ImplicitSurfaceApp(void)
@@ -57,6 +56,10 @@ void ImplicitSurfaceApp::LoadMeshIntoBuffer(Geometry::TriMesh m)
 		auto_curvatures.push_back(AutoDiffCurvature(v));
 		estimated_curvatures.push_back(EstimateCurvature(i));
 
+		float percent = ((float)i) / (float)m.points().size();
+
+		std::cout << "MESH LOADED " << percent*100 << "%" << std::endl;
+
 	}
 
 	float max_curv = -100000;
@@ -74,6 +77,8 @@ void ImplicitSurfaceApp::LoadMeshIntoBuffer(Geometry::TriMesh m)
 
 			max_curv = 1;
 			min_curv = -1;
+
+			//0.9-et használ 1 helyett numerikus hibák elkerülésésre
 			if (curv > 0.9) { curv = 0.9; }
 			if (curv < -0.9) { curv = -0.9; }
 			if (curv_est > 0.9) { curv_est = 0.9; }
@@ -102,26 +107,26 @@ void ImplicitSurfaceApp::LoadMeshIntoBuffer(Geometry::TriMesh m)
 
 	}
 
-	m_CubeVertexBuffer.Clean();
-	m_CubeVertexBuffer.BufferData(vertices);
+	m_VertexBuffer.Clean();
+	m_VertexBuffer.BufferData(vertices);
 
-	m_CubeIndices.Clean();
-	m_CubeIndices.BufferData(indices);
+	m_Indices.Clean();
+	m_Indices.BufferData(indices);
 
-	m_CubeVao.Init(
+	m_Vao.Init(
 		{
 			// 0-ás attribútum "lényegében" glm::vec3-ak sorozata és az adatok az m_CubeVertexBuffer GPU pufferben vannak
 			{ CreateAttribute<		0,						// attribútum: 0
 									glm::vec3,				// CPU oldali adattípus amit a 0-ás attribútum meghatározására használtunk <- az eljárás a glm::vec3-ból kikövetkezteti, hogy 3 darab float-ból áll a 0-ás attribútum
 									0,						// offset: az attribútum tároló elejétől vett offset-je, byte-ban
 									sizeof(Vertex)			// stride: a következő csúcspont ezen attribútuma hány byte-ra van az aktuálistól
-								>, m_CubeVertexBuffer },
-			{ CreateAttribute<1, glm::vec3, (sizeof(glm::vec3)), sizeof(Vertex)>, m_CubeVertexBuffer },
-			{ CreateAttribute<2, glm::vec2, (2 * sizeof(glm::vec3)), sizeof(Vertex)>, m_CubeVertexBuffer },
-			{ CreateAttribute<3, float, (2 * sizeof(glm::vec3)) + sizeof(glm::vec2), sizeof(Vertex)>, m_CubeVertexBuffer },
-			{ CreateAttribute<4, float, (2 * sizeof(glm::vec3)) + sizeof(glm::vec2) + sizeof(float), sizeof(Vertex)>, m_CubeVertexBuffer },
+								>, m_VertexBuffer },
+			{ CreateAttribute<1, glm::vec3, (sizeof(glm::vec3)), sizeof(Vertex)>, m_VertexBuffer },
+			{ CreateAttribute<2, glm::vec2, (2 * sizeof(glm::vec3)), sizeof(Vertex)>, m_VertexBuffer },
+			{ CreateAttribute<3, float, (2 * sizeof(glm::vec3)) + sizeof(glm::vec2), sizeof(Vertex)>, m_VertexBuffer },
+			{ CreateAttribute<4, float, (2 * sizeof(glm::vec3)) + sizeof(glm::vec2) + sizeof(float), sizeof(Vertex)>, m_VertexBuffer },
 		},
-		m_CubeIndices
+		m_Indices
 	);
 }
 
@@ -208,7 +213,17 @@ float ImplicitSurfaceApp::AutoDiffCurvature(Geometry::Vector3D v)
 glm::vec3 ImplicitSurfaceApp::EstimateNormal(int vertex_index)
 {
 
-	return glm::vec3(0, 0, 1);
+	std::vector<Triangle> tris = GetAllTriangles(vertex_index);
+	glm::vec3 aggr_normal;
+	float area = 0;
+	for (Triangle t : tris) {
+	
+		area += GetTriangleArea(t);
+		aggr_normal += GetTriangleNormal(t);
+
+	}
+
+	return (0.5f * area) * aggr_normal;
 
 }
 
@@ -216,7 +231,7 @@ float ImplicitSurfaceApp::EstimateCurvature(int vertex_index)
 {
 	if(UseMeanCurvature){
 	
-		std::vector<Triangle> tris = GetAllTriangles(vertex_index, mesh);
+		std::vector<Triangle> tris = GetAllTriangles(vertex_index);
 		tris = OrderTriangles(tris);
 
 		float numerator = 0;
@@ -247,7 +262,7 @@ float ImplicitSurfaceApp::EstimateCurvature(int vertex_index)
 				float side_length = length(side);
 
 				numerator += (angle * side_length);
-				area += GetTriangleArea(tris[i], mesh);
+				area += GetTriangleArea(tris[i]);
 
 			}
 
@@ -261,11 +276,11 @@ float ImplicitSurfaceApp::EstimateCurvature(int vertex_index)
 		float area = 0;
 		float angle = 2 * M_PI;
 
-		std::vector<Triangle> tris = GetAllTriangles(vertex_index, mesh);
+		std::vector<Triangle> tris = GetAllTriangles(vertex_index);
 
 		for (const Triangle& t : tris) {
 
-			area += GetTriangleArea(t, mesh);
+			area += GetTriangleArea(t);
 			angle -= GetTriangleAngle(t);
 
 		}
@@ -326,7 +341,7 @@ void ImplicitSurfaceApp::InitFunctions()
 
 				return x * x + y * y + z * z - 1;
 
-			}, 5, 50
+			}, 2, 30
 		)
 	);
 
@@ -349,7 +364,7 @@ void ImplicitSurfaceApp::InitFunctions()
 
 		return x * x + y * y + z - 1;
 
-	}, 3, 40
+	}, 3, 30
 	));
 	Functions.push_back(
 		Function_T(
@@ -370,7 +385,7 @@ void ImplicitSurfaceApp::InitFunctions()
 
 				return sin(x * z) + y - 1;
 
-			}, 2, 30
+			}, 5, 25
 			));
 	Functions.push_back(
 		Function_T(
@@ -393,6 +408,94 @@ void ImplicitSurfaceApp::InitFunctions()
 
 	}, 3, 25
 	));
+
+	//HD
+	Functions.push_back(
+		Function_T(
+			[](Geometry::Vector3D p) {
+				double x, y, z;
+				x = p[0]; y = p[1]; z = p[2];
+				return  x * x + y * y + z * z - 1;
+
+			},
+			[](dual x, dual y, dual z) -> autodiff::dual {
+
+
+				return x * x + y * y + z * z - 1;
+
+			},
+				[](dual2nd x, dual2nd y, dual2nd z) -> autodiff::dual2nd {
+
+
+				return x * x + y * y + z * z - 1;
+
+			}, 2, 80
+				)
+	);
+
+	Functions.push_back(
+		Function_T(
+			[](Geometry::Vector3D p) {
+				double x, y, z;
+				x = p[0]; y = p[1]; z = p[2];
+				return  x * x + y * y + z - 1;
+
+			},
+			[](dual x, dual y, dual z) -> autodiff::dual {
+
+
+				return x * x + y * y + z - 1;
+
+			},
+				[](dual2nd x, dual2nd y, dual2nd z) -> autodiff::dual2nd {
+
+
+				return x * x + y * y + z - 1;
+
+			}, 3, 80
+				));
+	Functions.push_back(
+		Function_T(
+			[](Geometry::Vector3D p) {
+				double x, y, z;
+				x = p[0]; y = p[1]; z = p[2];
+				return  sin(x * z) + y - 1;
+
+			},
+			[](dual x, dual y, dual z) -> autodiff::dual {
+
+
+				return sin(x * z) + y - 1;
+
+			},
+				[](dual2nd x, dual2nd y, dual2nd z) -> autodiff::dual2nd {
+
+
+				return sin(x * z) + y - 1;
+
+			}, 4, 80
+				));
+	Functions.push_back(
+		Function_T(
+			[](Geometry::Vector3D p) {
+				double x, y, z;
+				x = p[0]; y = p[1]; z = p[2];
+				return 12.5990051961515 * pow(x, 2) * pow(y, 2) * pow(z, 2) + 10.0000000000000 * pow(x, 2) * pow(y, 2) + 2.34314575050762 * pow(x, 2) * pow(z, 2) + 10.0000000000000 * pow(y, 2) * pow(z, 2) + (x - 0.500000000000000) * pow(x, 2) + (2 * y - 0.400000000000000) * pow(y, 2) + (z - 0.500000000000000) * pow(z, 2);
+
+			},
+			[](dual x, dual y, dual z) -> autodiff::dual {
+
+
+				return 12.5990051961515 * pow(x, 2) * pow(y, 2) * pow(z, 2) + 10.0000000000000 * pow(x, 2) * pow(y, 2) + 2.34314575050762 * pow(x, 2) * pow(z, 2) + 10.0000000000000 * pow(y, 2) * pow(z, 2) + (x - 0.500000000000000) * pow(x, 2) + (2 * y - 0.400000000000000) * pow(y, 2) + (z - 0.500000000000000) * pow(z, 2);
+
+			},
+				[](dual2nd x, dual2nd y, dual2nd z) -> autodiff::dual2nd {
+
+
+				return 12.5990051961515 * pow(x, 2) * pow(y, 2) * pow(z, 2) + 10.0000000000000 * pow(x, 2) * pow(y, 2) + 2.34314575050762 * pow(x, 2) * pow(z, 2) + 10.0000000000000 * pow(y, 2) * pow(z, 2) + (x - 0.500000000000000) * pow(x, 2) + (2 * y - 0.400000000000000) * pow(y, 2) + (z - 0.500000000000000) * pow(z, 2);
+
+			}, 3, 80
+				));
 
 }
 
@@ -447,7 +550,7 @@ void ImplicitSurfaceApp::GenerateMesh(int function_index)
 
 }
 
-std::vector<std::array<size_t, 3>> ImplicitSurfaceApp::GetAllTriangles(int vertex_id, Geometry::TriMesh mesh)
+std::vector<std::array<size_t, 3>> ImplicitSurfaceApp::GetAllTriangles(int vertex_id)
 {
 	std::vector<std::array<size_t, 3>> out;
 
@@ -490,7 +593,7 @@ std::vector<std::array<size_t, 3>> ImplicitSurfaceApp::GetAllTriangles(int verte
 
 }
 
-float ImplicitSurfaceApp::GetTriangleArea(std::array<size_t, 3> tri, Geometry::TriMesh mesh)
+float ImplicitSurfaceApp::GetTriangleArea(std::array<size_t, 3> tri)
 {
 	{
 
@@ -602,7 +705,7 @@ void ImplicitSurfaceApp::Render()
 	m_program.SetUniform("worldIT", glm::inverse(glm::transpose(MeshWorld)));
 	m_program.SetUniform("viewPos", m_camera.GetEye());
 
-	m_CubeVao.Bind();
+	m_Vao.Bind();
 
 	glm::mat4 cubeWorld;
 
@@ -625,8 +728,8 @@ void ImplicitSurfaceApp::Render()
 
 
 	ImGui::ShowTestWindow();
-	ImGui::Checkbox("Debug Normals",&ImguiDebugNormals);
-	ImGui::Checkbox("Debug Edges", &ImguiDebugEdges);
+	//ImGui::Checkbox("Debug Normals",&ImguiDebugNormals);
+	//ImGui::Checkbox("Debug Edges", &ImguiDebugEdges);
 	ImGui::Checkbox("Visualize Curvature", &VisualizeCurvature);
 
 	if (ImGui::Checkbox("Use Differentiated Curvature", &UseAutoCurvature)) {

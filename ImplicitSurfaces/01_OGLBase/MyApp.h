@@ -59,13 +59,13 @@ protected:
 
 	ProgramObject		m_program;			// mesh shader
 
-	VertexArrayObject	m_CubeVao;			// VAO
-	IndexBuffer			m_CubeIndices;		// index buffer
-	ArrayBuffer			m_CubeVertexBuffer;	// VBO
+	VertexArrayObject	m_Vao;			// VAO
+	IndexBuffer			m_Indices;		// index buffer
+	ArrayBuffer			m_VertexBuffer;	// VBO
 
 	gCamera				m_camera;
 
-	int TriangeCount;
+	int TriangeCount = 0;
 
 	Geometry::TriMesh mesh;
 	std::vector<glm::vec3> auto_normals;
@@ -81,8 +81,6 @@ protected:
 		float c;
 		float c_est;
 	};
-
-	std::unique_ptr<Mesh> m_mesh;
 
 	typedef std::array<size_t, 3> Triangle;
 
@@ -105,17 +103,16 @@ protected:
 	void DebugEdges();
 	void GenerateMesh(int function_index);
 
-	std::vector< std::array<size_t, 3>> GetAllTriangles(int vertex_id, Geometry::TriMesh mesh);
+	std::vector< std::array<size_t, 3>> GetAllTriangles(int vertex_id);
 
 	glm::vec3 ConvertVector(Geometry::Vector3D v) {
 	
 		return glm::vec3(v[0], v[1], v[2]);
 
 	}
-	float GetTriangleArea(std::array<size_t, 3> tri, Geometry::TriMesh mesh);
+	float GetTriangleArea(std::array<size_t, 3> tri);
 	float GetTriangleAngle(Triangle t);
 	glm::vec3 GetTriangleNormal(Triangle t);
-
 	bool IsValidTriangle(Triangle t);
 
 	bool UseNormalScale = true;
@@ -127,7 +124,9 @@ protected:
 	bool UseMeanCurvature = true;
 	int ActiveFunctionIndex = 0;
 	int DebugVertexCount = 0;
-	std::vector<std::string> FunctionNames = {"Surface One","Surface Two", "Surface Three", "Surface Four"};
+	std::vector<std::string> FunctionNames = 
+	{"Surface One ","Surface Two", "Surface Three", "Surface Four",
+		"Surface One HD","Surface Two HD", "Surface Three HD", "Surface Four HD" };
 
 
 };
