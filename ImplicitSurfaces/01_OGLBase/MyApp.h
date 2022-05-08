@@ -57,6 +57,8 @@ public:
 
 protected:
 
+	typedef std::array<size_t, 3> Triangle;
+
 	ProgramObject		m_program;			// mesh shader
 
 	VertexArrayObject	m_Vao;			// VAO
@@ -72,6 +74,9 @@ protected:
 	std::vector<glm::vec3> estimated_normals;
 	std::vector<float> auto_curvatures;
 	std::vector<float> estimated_curvatures;
+	std::vector<Triangle> mesh_triangles;
+
+	std::vector<int> * vertex_trimap = nullptr;
 
 	struct Vertex
 	{
@@ -82,7 +87,6 @@ protected:
 		float c_est;
 	};
 
-	typedef std::array<size_t, 3> Triangle;
 
 	std::vector<Function_T> Functions;
 
@@ -93,6 +97,7 @@ protected:
 	float EstimateCurvature(int vertex_index);
 
 	std::vector<Triangle> OrderTriangles(std::vector<Triangle> tris);
+	std::vector<Triangle> ReorientTriangles(std::vector<Triangle> tris, int);
 
 	double Det_2x2(double a1, double a2, double b1, double b2);
 
@@ -121,12 +126,11 @@ protected:
 	bool VisualizeCurvature = true;
 	bool UseAutoNormals = true;
 	bool UseAutoCurvature = false;
-	bool UseMeanCurvature = true;
+	bool UseMeanCurvature = false;
 	int ActiveFunctionIndex = 0;
 	int DebugVertexCount = 0;
 	std::vector<std::string> FunctionNames = 
-	{"Surface One ","Surface Two", "Surface Three", "Surface Four",
-		"Surface One HD","Surface Two HD", "Surface Three HD", "Surface Four HD" };
+	{"Sphere ","Paraleloid", "Wave", "Junction", "Lapel"};
 
 
 };
